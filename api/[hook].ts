@@ -18,7 +18,7 @@ function getArticle(pair, currentPrice) {
   };
 }
 
-export default async function test(req, res) {
+export default async function hook(req, res) {
   if (req.query.hook !== token) {
     return res.status(400).end();
   }
