@@ -41,8 +41,6 @@ export default async function test(req, res) {
       chat_id: req.body.message.chat.id,
       text: 'Only inline queries are supported\n\nSummon with @XbtPriceBot and choose from the list'
     });
-
-    console.log(res.data);
   }
 
   res.end();
