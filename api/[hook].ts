@@ -10,6 +10,7 @@ function getArticle(pair, currentPrice) {
     id: String(Math.floor(Math.random() * Number.MAX_SAFE_INTEGER)),
     title: pair,
     description: currentPrice,
+    thumb_url: 'https://raw.githubusercontent.com/roslinpl/bitcoin.it-promotional_graphics/master/bitcoinLogo1000.png',
     input_message_content: {
       message_text: `${pair}: ${currentPrice}`,
     },
@@ -27,6 +28,7 @@ export default async function test(req, res) {
 
     await axios.post(`${telegramUrl}/answerInlineQuery`, {
       inline_query_id: req.body.inline_query.id,
+      cache_time: 15,
       results: [
         getArticle("BTC/USD", usd.data.last),
         getArticle("BTC/EUR", eur.data.last),
