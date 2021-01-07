@@ -4,6 +4,7 @@
   "description": "Telegram bot to retrieve current price of Bitcoin",
   "dependencies": {
     "axios": "^0.21.1",
+    "uuid": "^8.3.2",
     "vercel": "^21.0.1"
   },
   "devDependencies": {},

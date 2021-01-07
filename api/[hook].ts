@@ -1,13 +1,14 @@
-import axios from "axios";
+import axios from 'axios';
+import { v1 } from 'uuid';
 
 const token = process.env.TOKEN;
 const telegramUrl = `https://api.telegram.org/bot${token}`;
-const bistrampUrl = "https://www.bitstamp.net/api/v2/ticker";
+const bistrampUrl = 'https://www.bitstamp.net/api/v2/ticker';
 
 function getArticle(pair, currentPrice) {
   return {
-    type: "article",
-    id: String(Math.floor(Math.random() * Number.MAX_SAFE_INTEGER)),
+    type: 'article',
+    id: v1(),
     title: pair,
     description: currentPrice,
     thumb_url: 'https://raw.githubusercontent.com/roslinpl/bitcoin.it-promotional_graphics/master/bitcoinLogo1000.png',
@@ -30,8 +31,8 @@ export default async function test(req, res) {
       inline_query_id: req.body.inline_query.id,
       cache_time: 15,
       results: [
-        getArticle("BTC/USD", usd.data.last),
-        getArticle("BTC/EUR", eur.data.last),
+        getArticle('BTC/USD', usd.data.last),
+        getArticle('BTC/EUR', eur.data.last),
       ],
     });
 
