@@ -1,0 +1,16 @@
+{
+  "name": "xbt-price",
+  "version": "0.0.1",
+  "description": "Telegram bot to retrieve current price of Bitcoin",
+  "main": "index.js",
+  "dependencies": {
+    "axios": "^0.21.1",
+    "vercel": "^21.0.1"
+  },
+  "devDependencies": {},
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "ISC"
+}
