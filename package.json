@@ -2,15 +2,25 @@
   "name": "xbt-price",
   "version": "0.0.1",
   "description": "Telegram bot to retrieve current price of Bitcoin",
-  "main": "index.js",
   "dependencies": {
     "axios": "^0.21.1",
     "vercel": "^21.0.1"
   },
   "devDependencies": {},
-  "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+  "author": "Nikoloz Razmadze <nikoloz@razmadze.me> (https://github.com/ralozkolya)",
+  "license": "ISC",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ralozkolya/xbt-price-bot.git"
   },
-  "author": "",
-  "license": "ISC"
+  "keywords": [
+    "telegram",
+    "bot",
+    "bitcoin",
+    "price"
+  ],
+  "bugs": {
+    "url": "https://github.com/ralozkolya/xbt-price-bot/issues"
+  },
+  "homepage": "https://github.com/ralozkolya/xbt-price-bot#readme"
 }
