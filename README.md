@@ -1,3 +1,3 @@
 # Telegram bot for querying Bitcoin price
 
-Summon by @XbtPriceBot inline query
+Summon by [@XbtPriceBot](https://t.me/xbtpricebot) inline query
