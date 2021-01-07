@@ -1,3 +1,4 @@
+import { NowRequest, NowResponse } from '@vercel/node';
 import axios from 'axios';
 import { v1 } from 'uuid';
 
@@ -5,12 +6,25 @@ const token = process.env.TOKEN;
 const telegramUrl = `https://api.telegram.org/bot${token}`;
 const bistrampUrl = 'https://www.bitstamp.net/api/v2/ticker';
 
-function getArticle(pair, currentPrice) {
+type Pair = 'BTC/USD' | 'BTC/EUR';
+
+interface IArticle {
+  type: 'article';
+  id: string;
+  title: Pair;
+  description: string;
+  thumb_url: string;
+  input_message_content: {
+    message_text: string;
+  };
+}
+
+function getArticle(pair: Pair, currentPrice: number): IArticle {
   return {
     type: 'article',
     id: v1(),
     title: pair,
-    description: currentPrice,
+    description: String(currentPrice),
     thumb_url: 'https://raw.githubusercontent.com/roslinpl/bitcoin.it-promotional_graphics/master/bitcoinLogo1000.png',
     input_message_content: {
       message_text: `${pair}: ${currentPrice}`,
@@ -18,7 +32,8 @@ function getArticle(pair, currentPrice) {
   };
 }
 
-export default async function hook(req, res) {
+export default async function hook(req: NowRequest, res: NowResponse): Promise<void> {
+
   if (req.query.hook !== token) {
     return res.status(400).end();
   }
@@ -47,4 +62,5 @@ export default async function hook(req, res) {
   }
 
   res.end();
+  
 }
