@@ -1,0 +1,12 @@
+name: 5-minute-cron
+
+on:
+  schedule:
+    - cron: '*/5 * * * *'
+
+jobs:
+  cron:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Runs a cron job every 5 minutes
+        run: curl 'https://9b6a5bf3ee9b.ngrok.io'
