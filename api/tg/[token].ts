@@ -18,15 +18,13 @@ export default async function hook(
     return res.end();
   }
 
-  console.log(req.body);
-
   if (req.body.message) {
     const {
       text,
       chat: { id: chatId },
     } = req.body.message;
 
-    if (text) {
+    if (text && !req.body.message.via_bot) {
 
       if (text.startsWith('/start')) {
         await start(chatId);
