@@ -1,7 +1,10 @@
-import { readFile } from 'fs/promises';
+import fs from 'fs';
 import { resolve } from 'path';
+import Bluebird from 'bluebird';
 
 import { sendMessage } from './api';
+
+const readFile = Bluebird.promisify(fs.readFile, { context: fs });
 
 async function fileContent(filename: string, replace: IReplace = null, extension = '.md'): Promise<string> {
   const buffer = await readFile(resolve(__dirname, '../messages', `${filename}${extension}`));
