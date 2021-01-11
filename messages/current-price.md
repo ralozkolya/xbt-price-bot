@@ -1,0 +1,1 @@
+Current price: %AMOUNT% %CURRENCY%

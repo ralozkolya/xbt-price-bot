@@ -56,3 +56,7 @@ export async function alertSet(chatId: number, replace: IReplace = null): Promis
 export async function alertTriggered(chatId: number, replace: IReplace = null): Promise<void> {
   await sendMessage(chatId, await fileContent('alert-triggered', replace));
 }
+
+export async function getCurrent(chatId: number, replace: IReplace = null): Promise<void> {
+  await sendMessage(chatId, await fileContent('current-price', replace));
+}

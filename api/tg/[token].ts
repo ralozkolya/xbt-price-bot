@@ -4,6 +4,7 @@ import { TG_TOKEN } from '../../src/config';
 import { answerInlineQuery } from '../../src/inline-query';
 import { start, getHelp } from '../../src/messages';
 import { alertFromCommand, alertFromResponse } from '../../src/alert';
+import { current } from '../../src/current';
 
 export default async function hook(
   req: NowRequest,
@@ -32,6 +33,8 @@ export default async function hook(
         await getHelp(chatId);
       } else if (text.startsWith('/alert')) {
         await alertFromCommand(chatId, text);
+      } else if (text.startsWith('/current')) {
+        await current(chatId, text);
       } else {
         await alertFromResponse(chatId, text);
       }
