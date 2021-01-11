@@ -23,7 +23,7 @@ async function setAlert(chatId: number, amount: string, currency: Currency = 'us
 }
 
 export function alertFromCommand(chatId: number, text: string): Promise<void> {
-  const targetRaw = text.replace(/\/alert\s?/, '');
+  const targetRaw = text.replace(/\/alert(@XbtPriceBot\s)?/, '');
 
   if (!targetRaw) {
     return alertAcknowledgment(chatId);
