@@ -18,20 +18,25 @@ export default async function hook(
     return res.end();
   }
 
+  console.log(req.body);
+
   if (req.body.message) {
     const {
       text,
       chat: { id: chatId },
     } = req.body.message;
 
-    if (text.startsWith('/start')) {
-      await start(chatId);
-    } else if (text.startsWith('/help')) {
-      await getHelp(chatId);
-    } else if (text.startsWith('/alert')) {
-      await alertFromCommand(chatId, text);
-    } else {
-      await alertFromResponse(chatId, text);
+    if (text) {
+
+      if (text.startsWith('/start')) {
+        await start(chatId);
+      } else if (text.startsWith('/help')) {
+        await getHelp(chatId);
+      } else if (text.startsWith('/alert')) {
+        await alertFromCommand(chatId, text);
+      } else {
+        await alertFromResponse(chatId, text);
+      }
     }
   }
 
