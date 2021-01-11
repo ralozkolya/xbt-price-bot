@@ -15,8 +15,13 @@ export default async function (
   }
 
   const alerts = await retrieve();
-  const usd = await getLastPrice('usd');
-  const eur = await getLastPrice('eur');
+
+  let usd, eur;
+
+  if (alerts.length) {
+    usd = await getLastPrice('usd');
+    eur = await getLastPrice('eur');
+  }
 
   await Bluebird.each<IAlert>(alerts, async (alert: IAlert) => {
     const compareTo = alert.currency === 'usd' ? usd : eur;
