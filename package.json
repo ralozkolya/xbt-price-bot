@@ -4,10 +4,14 @@
   "description": "Telegram bot to retrieve current price of Bitcoin",
   "dependencies": {
     "axios": "^0.21.1",
+    "bluebird": "^3.7.2",
+    "human-format": "^0.11.0",
+    "mongoose": "^5.11.11",
     "uuid": "^8.3.2",
     "vercel": "^21.0.1"
   },
   "devDependencies": {
+    "@types/bluebird": "^3.5.33",
     "@types/uuid": "^8.3.0"
   },
   "author": "Nikoloz Razmadze <nikoloz@razmadze.me> (https://github.com/ralozkolya)",
