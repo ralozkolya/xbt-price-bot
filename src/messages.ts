@@ -11,9 +11,9 @@ async function fileContent(filename: string, replace: IReplace = null, extension
     Object.keys(replace).forEach(key => {
       text = text.replace(new RegExp(`%${key}%`, 'g'), replace[key]);
     });
-  }
 
-  text = text.replace('.', '\\.');
+    text = text.replace('.', '\\.');
+  }
 
   return text;
 }
