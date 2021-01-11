@@ -34,12 +34,16 @@ export function alertFromCommand(chatId: number, text: string): Promise<void> {
 
 export function alertFromResponse(chatId: number, text: string): Promise<void> {
 
-  const [ amount, currency = 'usd' ] = text.split(' ');
-  const currencyLower = currency.toLowerCase();
+  let [ amount, currency = 'usd' ] = text.split(' ');
+  currency = currency.toLowerCase();
 
-  if (currencyLower !== 'usd' && currencyLower !== 'eur') {
+  if (currency !== 'usd' && currency !== 'eur') {
     return unsupportedCurrency(chatId);
   }
 
-  return setAlert(chatId, amount, currencyLower);
+  if (amount.toLowerCase() === 'moon') {
+    amount = '100k';
+  }
+
+  return setAlert(chatId, amount, currency);
 }
