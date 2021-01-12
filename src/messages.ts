@@ -15,7 +15,7 @@ async function fileContent(filename: string, replace: IReplace = null, extension
       const value = [ 'AMOUNT', 'PRICE' ].includes(key)
         ? Intl.NumberFormat().format(replace[key])
         : replace[key];
-      text = text.replace(new RegExp(`%${key}%`, 'g'), replace[key]);
+      text = text.replace(new RegExp(`%${key}%`, 'g'), value);
     });
 
     text = text.replace('.', '\\.');
