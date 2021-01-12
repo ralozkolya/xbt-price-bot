@@ -12,6 +12,9 @@ async function fileContent(filename: string, replace: IReplace = null, extension
 
   if (replace) {
     Object.keys(replace).forEach(key => {
+      const value = [ 'AMOUNT', 'PRICE' ].includes(key)
+        ? Intl.NumberFormat().format(replace[key])
+        : replace[key];
       text = text.replace(new RegExp(`%${key}%`, 'g'), replace[key]);
     });
 
