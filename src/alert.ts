@@ -15,7 +15,7 @@ async function setAlert(chatId: number, amount: string, currency: Currency = 'us
     await alertSet(chatId, {
       CURRENCY: currency.toUpperCase(),
       AMOUNT: target,
-      ALERT_ON: alertOn
+      ALERT_ON: alertOn === 'higher' ? 'rises above' : 'drops below'
     });
   } catch (e) {
     await unsupportedTarget(chatId);
