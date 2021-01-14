@@ -37,7 +37,7 @@ export default async function hook(
       } else if (text.startsWith('/current')) {
         await current(chatId, text);
       } else if (text.startsWith('/chart')) {
-        await chart(chatId);
+        await chart(chatId, text);
       } else {
         await alertFromResponse(chatId, text);
       }
