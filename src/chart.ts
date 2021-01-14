@@ -1,23 +1,13 @@
 import { CanvasRenderService } from 'chartjs-node-canvas';
 import axios from 'axios';
+import { Readable } from 'stream';
 import { sendPhoto } from './api';
-import { unsupportedCurrency } from './messages';
 
-export default async function (chatId: number, text: string): Promise<void> {
-
-  let [, currency = 'usd' ] = text.split(' ');
-  currency = currency.toLowerCase();
-
-  if (currency !== 'usd' && currency !== 'eur') {
-    return unsupportedCurrency(chatId);
-  }
-
-  const symbol = currency === 'usd' ? '$' : '€';
-
+export default async function (chatId: number): Promise<void> {
   const service = new CanvasRenderService(800, 600);
 
   const response = await axios.get(
-    `https://www.bitstamp.net/api/v2/ohlc/btc${currency}/?step=3600&limit=24`
+    'https://www.bitstamp.net/api/v2/ohlc/btcusd/?step=3600&limit=24'
   );
   const data = response.data.data.ohlc.map((entry) => parseFloat(entry.close));
   const labels = response.data.data.ohlc.map((entry) => {
@@ -33,7 +23,7 @@ export default async function (chatId: number, text: string): Promise<void> {
       datasets: [
         {
           data,
-          label: `BTC/${currency.toUpperCase()}`,
+          label: 'BTC/USD',
           borderColor: '#55a',
           backgroundColor: 'rgba(50, 50, 128, .5)',
           lineTension: .2,
@@ -54,7 +44,7 @@ export default async function (chatId: number, text: string): Promise<void> {
         }],
         yAxes: [{
           ticks: {
-            callback: v => `${symbol}${Intl.NumberFormat('en-GB').format(v)}`
+            callback: v => `$${Intl.NumberFormat('en-GB').format(v)}`
           }
         }]
       }
