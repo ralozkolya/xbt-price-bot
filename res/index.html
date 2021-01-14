@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bitcoin info</title>
+    <script type="text/javascript" src="https://www.gstatic.com/charts/loader.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.29.1/moment.min.js"></script>
+    <style>
+        body {
+            margin: 0;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="chart" style="width: 800px; height: 600px"></div>
+
+    <script>
+        google.charts.load('current', {
+            packages: ['corechart']
+        });
+        google.charts.setOnLoadCallback(drawChart);
+
+        async function drawChart() {
+
+            const payload = await fetch('https://www.bitstamp.net/api/v2/ohlc/btcusd/?step=3600&limit=24');
+            const json = await payload.json();
+            const candles = json.data.ohlc.map(tick => {
+                return [
+                    moment(tick.timestamp * 1000).format('HH:mm'),
+                    parseInt(tick.low, 10),
+                    parseInt(tick.open, 10),
+                    parseInt(tick.close, 10),
+                    parseInt(tick.high, 10),
+                ];
+            });
+
+            const data = new google.visualization.arrayToDataTable(candles, true);
+
+            const chart = new google.visualization.CandlestickChart(document.querySelector('#chart'));
+            chart.draw(data, {
+                title: 'BTC/USD',
+                legend: 'none',
+                candlestick: {
+                    fallingColor: {
+                        stroke: 'red',
+                        fill: 'red'
+                    }
+                },
+                chartArea: {
+                    left: '10%',
+                    width: '85%',
+                    height: '80%'
+                },
+                hAxis: {
+                    slantedText: true,
+                    slantedTextAngle: 45
+                },
+                colors: ['green', 'red', 'blue', 'black']
+            });
+
+            console.log('done');
+
+        }
+    </script>
+
+</body>
+
+</html>
