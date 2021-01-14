@@ -5,6 +5,7 @@ import { answerInlineQuery } from '../../src/inline-query';
 import { start, getHelp } from '../../src/messages';
 import { alertFromCommand, alertFromResponse } from '../../src/alert';
 import { current } from '../../src/current';
+import chart from '../../src/chart';
 
 export default async function hook(
   req: NowRequest,
@@ -35,6 +36,8 @@ export default async function hook(
         await alertFromCommand(chatId, text);
       } else if (text.startsWith('/current')) {
         await current(chatId, text);
+      } else if (text.startsWith('/chart')) {
+        await chart(chatId);
       } else {
         await alertFromResponse(chatId, text);
       }
