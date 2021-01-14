@@ -1,5 +1,4 @@
 import axios from 'axios';
-import FormData from 'form-data';
 
 import { BITSTAMP_URL, TELEGRAM_URL } from './config';
 import { getArticle } from './inline-query';
@@ -27,16 +26,4 @@ export async function sendMessage(chatId: number, text: string, parseMode = 'Mar
     parse_mode: parseMode,
     text
   });
-}
-
-export async function sendPhoto(chatId: number, photo: Buffer): Promise<void> {
-
-  const formData = new FormData();
-
-  formData.append('chat_id', chatId);
-  formData.append('photo', photo, 'photo.png');
-
-  await axios.create({
-    headers: formData.getHeaders()
-  }).post(`${TELEGRAM_URL}/sendPhoto`, formData);
 }
