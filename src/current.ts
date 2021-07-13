@@ -7,7 +7,7 @@ export async function current(chatId: number, text: string): Promise<void> {
   let [, currency = 'usd' ] = text.split(' ');
   currency = currency.toLowerCase();
 
-  if (currency !== 'usd' && currency !== 'eur') {
+  if (!['usd', 'eur'].includes(currency)) {
     return unsupportedCurrency(chatId);
   }
 
