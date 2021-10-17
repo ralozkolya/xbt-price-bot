@@ -3,10 +3,10 @@
   "version": "0.0.1",
   "description": "Telegram bot to retrieve current price of Bitcoin",
   "dependencies": {
-    "axios": "^0.21.1",
+    "axios": "^0.21.4",
     "bluebird": "^3.7.2",
     "human-format": "^0.11.0",
-    "mongoose": "^5.11.11",
+    "mongoose": "^6.0.11",
     "uuid": "^8.3.2",
     "vercel": "^21.0.1"
   },
