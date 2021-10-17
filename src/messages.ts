@@ -2,7 +2,7 @@ import fs from 'fs';
 import { resolve } from 'path';
 import Bluebird from 'bluebird';
 
-import { sendMessage } from './api';
+import { sendMessage, sendPhoto } from './api';
 
 const readFile = Bluebird.promisify(fs.readFile, { context: fs });
 
@@ -60,6 +60,6 @@ export async function alertTriggered(chatId: number, replace: IReplace = null): 
   await sendMessage(chatId, await fileContent('alert-triggered', replace));
 }
 
-export async function getCurrent(chatId: number, replace: IReplace = null): Promise<void> {
-  await sendMessage(chatId, await fileContent('current-price', replace));
+export async function getCurrent(chatId: number, url: string, replace: IReplace = null): Promise<void> {
+  await sendPhoto(chatId, url, await fileContent('current-price', replace));
 }

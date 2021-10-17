@@ -28,10 +28,7 @@ let connection: Mongoose;
 async function connect() {
   connection =
     connection ||
-    (await mongoose.connect(process.env.MONGO_URL, {
-      useNewUrlParser: true,
-      useUnifiedTopology: true,
-    }));
+    (await mongoose.connect(process.env.MONGO_URL));
 }
 
 export type Currency = 'usd' | 'eur';
