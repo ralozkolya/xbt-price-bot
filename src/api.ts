@@ -4,7 +4,7 @@ import { BITSTAMP_URL, TELEGRAM_URL } from './config';
 import { getArticle } from './inline-query';
 import { Currency } from './db';
 
-interface IOHLCResponse {
+export interface IOHLCResponse {
   pair: string;
   ohlc: {
     close: string;
@@ -30,6 +30,7 @@ export async function answerInlineQuery(queryId: string): Promise<void> {
 
 export async function sendMessage(chatId: number, text: string, parseMode = 'MarkdownV2'): Promise<void> {
   await axios.post(`${TELEGRAM_URL}/sendMessage`, {
+    disable_web_page_preview: true,
     chat_id: chatId,
     parse_mode: parseMode,
     text

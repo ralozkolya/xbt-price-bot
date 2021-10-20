@@ -1,7 +1,7 @@
 import QuickChart from 'quickchart-js';
 
-import { unsupportedCurrency, getCurrent } from './messages';
-import { getLastPrice, getPriceData } from './api';
+import { unsupportedCurrency, getCurrent, errorOccured } from './messages';
+import { getLastPrice, getPriceData, IOHLCResponse } from './api';
 import { Currency } from './db';
 
 export async function current(chatId: number, text: string): Promise<void> {
@@ -13,8 +13,15 @@ export async function current(chatId: number, text: string): Promise<void> {
     return unsupportedCurrency(chatId);
   }
 
-  const currentPrice = await getLastPrice(currency as Currency);
-  const priceData = await getPriceData(currency as Currency);
+  let currentPrice: number;
+  let priceData: IOHLCResponse;
+
+  try {
+    currentPrice = await getLastPrice(currency as Currency);
+    priceData = await getPriceData(currency as Currency);
+  } catch {
+    return errorOccured(chatId, 'Error retrieving the price data');
+  }
 
   const dateFormatter = Intl.DateTimeFormat('en-GB', { month: 'short', day: 'numeric', hour: 'numeric', minute: 'numeric' });
 

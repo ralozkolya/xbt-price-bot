@@ -63,3 +63,7 @@ export async function alertTriggered(chatId: number, replace: IReplace = null): 
 export async function getCurrent(chatId: number, url: string, replace: IReplace = null): Promise<void> {
   await sendPhoto(chatId, url, await fileContent('current-price', replace));
 }
+
+export async function errorOccured(chatId: number, errorText = 'An error has occured'): Promise<void> {
+  await sendMessage(chatId, errorText);
+}
