@@ -40,6 +40,7 @@ export interface IAlert extends Document {
   target: number;
   currency: Currency;
   alertOn: AlertOn;
+  createdOn: Date;
 }
 
 export async function retrieve(): Promise<IAlert[]> {
@@ -47,7 +48,7 @@ export async function retrieve(): Promise<IAlert[]> {
   return Alert.find({});
 }
 
-export async function store(data: Pick<IAlert, 'currency' | 'chatId' | 'target' | 'alertOn'>): Promise<void> {
+export async function store(data: Pick<IAlert, 'currency' | 'chatId' | 'target' | 'alertOn' | 'createdOn'>): Promise<void> {
   await connect();
   const alert = new Alert();
   Object.assign(alert, data);

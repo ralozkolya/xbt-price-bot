@@ -11,7 +11,7 @@ async function setAlert(chatId: number, amount: string, currency: Currency = 'us
     const price = await getLastPrice(currency);
     const alertOn = price > target ? 'lower' : 'higher';
 
-    await store({ chatId, target, currency, alertOn });
+    await store({ chatId, target, currency, alertOn, createdOn: new Date() });
     await alertSet(chatId, {
       CURRENCY: currency.toUpperCase(),
       AMOUNT: String(target),
