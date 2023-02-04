@@ -9,7 +9,7 @@
     "mongoose": "^6.4.6",
     "quickchart-js": "^1.4.2",
     "uuid": "^8.3.2",
-    "vercel": "^21.0.1"
+    "vercel": "^28.15.0"
   },
   "devDependencies": {
     "@types/bluebird": "^3.5.33",
