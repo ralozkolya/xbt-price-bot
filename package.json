@@ -6,7 +6,7 @@
     "axios": "^0.21.4",
     "bluebird": "^3.7.2",
     "human-format": "^0.11.0",
-    "mongoose": "^6.4.6",
+    "mongoose": "^6.11.3",
     "quickchart-js": "^1.4.2",
     "uuid": "^8.3.2",
     "vercel": "^28.15.0"
