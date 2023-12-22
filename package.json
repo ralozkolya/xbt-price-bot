@@ -1,0 +1,36 @@
+{
+  "name": "xbt-price-bot",
+  "version": "0.2.0",
+  "description": "Telegram bot for Bitcoin price alerts",
+  "type": "module",
+  "main": "index.js",
+  "scripts": {
+    "test": "npm test"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ralozkolya/xbt-price-bot.git"
+  },
+  "keywords": [
+    "telegram",
+    "bot",
+    "bitcoin",
+    "price",
+    "alert"
+  ],
+  "author": "Nikoloz Razmadze <nikoloz@razmadze.me>",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/ralozkolya/xbt-price-bot/issues"
+  },
+  "homepage": "https://github.com/ralozkolya/xbt-price-bot#readme",
+  "dependencies": {
+    "@koa/router": "^12.0.1",
+    "dotenv": "^16.3.1",
+    "http-errors": "^2.0.0",
+    "koa": "^2.14.2",
+    "sqlite": "^5.1.1",
+    "sqlite3": "^5.1.6",
+    "ws": "^8.15.1"
+  }
+}
