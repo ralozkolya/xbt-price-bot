@@ -13,3 +13,13 @@ export const getConnection = async () => {
 
   return db;
 };
+
+const db = await getConnection();
+
+export const getAlerts = (pair) => {
+  return db.all("select * from alerts where pair = ?", [pair]);
+};
+
+export const deleteAlert = (id) => {
+  return db.run("delete from alerts where id = ?", [id]);
+};

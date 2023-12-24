@@ -1,0 +1,5 @@
+import dotenv from "dotenv";
+dotenv.config();
+
+export const TG_TOKEN = process.env.TG_TOKEN;
+export const TELEGRAM_URL = `https://api.telegram.org/bot${TG_TOKEN}`;
