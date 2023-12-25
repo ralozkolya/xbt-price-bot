@@ -16,5 +16,5 @@ CREATE INDEX alerts_pair ON alerts (pair);
 -- Down
 --------------------------------------------------------------------------------
 
-DROP INDEX 
+DROP INDEX alerts_pair;
 DROP TABLE alerts;
