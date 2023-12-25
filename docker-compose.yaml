@@ -8,3 +8,4 @@ services:
     ports:
       - $PORT:$PORT
     command: node --watch index.js
+    restart: unless-stopped
