@@ -1,9 +1,8 @@
-import Koa from "koa";
 import Router from "@koa/router";
-import { init, priceTracker } from "./src/kraken.js";
-import { handle } from "./src/telegram.js";
+import Koa from "koa";
 import { koaBody } from "koa-body";
-import { priceChangeHandler } from "./src/alerts.js";
+import { handle } from "./src/telegram.js";
+import { init } from "./src/alerts.js";
 
 // Might need to add proxy: true here
 const app = new Koa();
@@ -21,5 +20,3 @@ app.use(router.routes());
 app.listen(process.env.PORT || 3000);
 
 init();
-
-priceTracker.subscribe(priceChangeHandler);

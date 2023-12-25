@@ -1,4 +1,4 @@
-import { Subject } from "rxjs";
+import { BehaviorSubject, filter } from "rxjs";
 import { WebSocket } from "ws";
 
 const onMessage = async (message) => {
@@ -27,10 +27,10 @@ const reconnect = (ws) => {
   ws.terminate();
   const delay = Math.min(20000, 500 * 2 ** tries++);
   console.log("Trying to reconnect in:", delay / 1000, "secs");
-  setTimeout(init, delay);
+  setTimeout(connect, delay);
 };
 
-export const init = () => {
+export const connect = () => {
   const ws = new WebSocket("wss://ws.kraken.com");
 
   console.log("Connecting to Kraken WS server...");
@@ -53,4 +53,4 @@ export const init = () => {
   });
 };
 
-export const priceTracker = new Subject();
+export const priceTracker = new BehaviorSubject().pipe(filter((_) => _));

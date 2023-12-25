@@ -20,6 +20,13 @@ export const getAlerts = (pair) => {
   return db.all("select * from alerts where pair = ?", [pair]);
 };
 
+export const insertAlert = ({ chatId, target, pair, alertOn }) => {
+  return db.run(
+    "insert into alerts (chatId, target, pair, alertOn) values (?, ?, ?, ?)",
+    [chatId, target, pair, alertOn]
+  );
+};
+
 export const deleteAlert = (id) => {
   return db.run("delete from alerts where id = ?", [id]);
 };
