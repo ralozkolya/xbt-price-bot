@@ -14,13 +14,17 @@ const validate = (token) => {
 export const handle = (token, body) => {
   validate(token);
 
+  console.log(!body.message || !body.message.via_bot);
+
   if (body.inline_query) {
     return respondToInlineQuery();
   }
 
-  if (!body.message || !body.message.via_bot) {
+  if (!body.message || body.message.via_bot) {
     return;
   }
+
+  console.log(body);
 
   const {
     text,
