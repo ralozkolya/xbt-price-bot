@@ -1,14 +1,21 @@
 import hf from "human-format";
 import { deleteAlert, getAlerts, insertAlert } from "./db.js";
-import { connect, getPair, lastPrice, priceTracker } from "./kraken.js";
+import {
+  connect,
+  getCurrency,
+  getPair,
+  lastPrice,
+  priceTracker,
+} from "./kraken.js";
 import { logger } from "./logger.js";
 import {
   alertAcknowledgment,
   alertSet,
+  alertTriggered,
   unsupportedTarget,
 } from "./messages.js";
 
-const processAlert = (alert, price) => {
+const processAlert = async (alert, price) => {
   if (
     (alert.target < price && "higher" === alert.alertOn) ||
     (alert.target > price && "lower" === alert.alertOn)
@@ -16,6 +23,12 @@ const processAlert = (alert, price) => {
     logger.info(
       `Alert ${alert.id} sent. ${alert.pair} price went ${alert.alertOn} than ${alert.target} (${price})`
     );
+    await alertTriggered(alert.chatId, {
+      CURRENCY: getCurrency(alert.pair),
+      AMOUNT: alert.target,
+      PRICE: price,
+      ACTION: "lower" === alert.alertOn ? "dropped below" : "risen above",
+    });
     deleteAlert(alert.id);
   }
 };

@@ -1,4 +1,10 @@
-import { BehaviorSubject, filter, firstValueFrom, take } from "rxjs";
+import {
+  BehaviorSubject,
+  debounceTime,
+  filter,
+  firstValueFrom,
+  take,
+} from "rxjs";
 import { WebSocket } from "ws";
 import { logger } from "./logger.js";
 
@@ -54,7 +60,10 @@ export const connect = () => {
   });
 };
 
-export const priceTracker = new BehaviorSubject().pipe(filter((_) => _));
+export const priceTracker = new BehaviorSubject().pipe(
+  filter((_) => _),
+  debounceTime(5000)
+);
 
 export const lastPrice = (pair) => {
   return firstValueFrom(
@@ -67,3 +76,5 @@ export const lastPrice = (pair) => {
 
 export const getPair = (currency) =>
   "usd" === currency ? "XBT/USD" : "XBT/EUR";
+
+export const getCurrency = (pair) => ("XBT/USD" === pair ? "USD" : "EUR");
