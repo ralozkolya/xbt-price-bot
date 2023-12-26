@@ -1,13 +1,12 @@
 import hf from "human-format";
-import { filter, take, tap } from "rxjs";
 import { deleteAlert, getAlerts, insertAlert } from "./db.js";
-import { connect, priceTracker } from "./kraken.js";
+import { connect, getPair, lastPrice, priceTracker } from "./kraken.js";
+import { logger } from "./logger.js";
 import {
   alertAcknowledgment,
   alertSet,
   unsupportedTarget,
 } from "./messages.js";
-import { logger } from "./logger.js";
 
 const processAlert = (alert, price) => {
   if (
@@ -24,23 +23,17 @@ const processAlert = (alert, price) => {
 const setAlert = async (chatId, amount, currency = "usd") => {
   try {
     const target = hf.parse(amount);
-    const pair = "usd" === currency ? "XBT/USD" : "XBT/EUR";
+    const pair = getPair(currency);
 
-    priceTracker
-      .pipe(
-        filter((price) => pair === price.pair),
-        take(1)
-      )
-      .subscribe(async ({ price, pair }) => {
-        const alertOn = price > target ? "lower" : "higher";
+    const { price } = await lastPrice(pair);
+    const alertOn = price > target ? "lower" : "higher";
 
-        await insertAlert({ chatId, target, pair, alertOn });
-        await alertSet(chatId, {
-          CURRENCY: currency.toUpperCase(),
-          AMOUNT: String(target),
-          ALERT_ON: "higher" === alertOn ? "rises above" : "drops below",
-        });
-      });
+    await insertAlert({ chatId, target, pair, alertOn });
+    await alertSet(chatId, {
+      CURRENCY: currency.toUpperCase(),
+      AMOUNT: String(target),
+      ALERT_ON: "higher" === alertOn ? "rises above" : "drops below",
+    });
   } catch (e) {
     await unsupportedTarget(chatId);
   }

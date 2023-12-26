@@ -3,6 +3,7 @@ import { respondToInlineQuery } from "./inline-query.js";
 import { getHelp, start } from "./messages.js";
 import { TG_TOKEN } from "./config.js";
 import { alertFromCommand } from "./alerts.js";
+import { current } from "./current.js";
 
 const validate = (token) => {
   if (TG_TOKEN !== token) {

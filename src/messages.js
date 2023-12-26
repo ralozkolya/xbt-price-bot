@@ -1,5 +1,5 @@
 import { readFile } from "node:fs/promises";
-import { sendMessage } from "./api.js";
+import { sendMessage, sendPhoto } from "./api.js";
 
 const fileContent = async (filename, replace = null, extension = ".md") => {
   const buffer = await readFile(`./messages/${filename}${extension}`);
