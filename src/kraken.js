@@ -1,5 +1,6 @@
 import { BehaviorSubject, filter } from "rxjs";
 import { WebSocket } from "ws";
+import { logger } from "./logger.js";
 
 const onMessage = async (message) => {
   message = JSON.parse(message);
@@ -26,29 +27,29 @@ let tries = 0;
 const reconnect = (ws) => {
   ws.terminate();
   const delay = Math.min(20000, 500 * 2 ** tries++);
-  console.log("Trying to reconnect in:", delay / 1000, "secs");
+  logger.warn(`Trying to reconnect in: ${delay / 1000} secs`);
   setTimeout(connect, delay);
 };
 
 export const connect = () => {
   const ws = new WebSocket("wss://ws.kraken.com");
 
-  console.log("Connecting to Kraken WS server...");
+  logger.info("Connecting to Kraken WS server...");
 
   ws.on("open", () => {
-    console.log("Connected!");
+    logger.info("Connected!");
     subscribe(ws, "trade");
   });
 
   ws.on("message", onMessage);
 
   ws.on("error", (error) => {
-    console.error(error.message);
+    logger.error(error.message);
     reconnect(ws);
   });
 
   ws.on("close", () => {
-    console.error("Channel closed");
+    logger.error("Channel closed");
     reconnect(ws);
   });
 };

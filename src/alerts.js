@@ -7,13 +7,14 @@ import {
   alertSet,
   unsupportedTarget,
 } from "./messages.js";
+import { logger } from "./logger.js";
 
 const processAlert = (alert, price) => {
   if (
     (alert.target < price && "higher" === alert.alertOn) ||
     (alert.target > price && "lower" === alert.alertOn)
   ) {
-    console.log(
+    logger.info(
       `Alert ${alert.id} sent. ${alert.pair} price went ${alert.alertOn} than ${alert.target} (${price})`
     );
     deleteAlert(alert.id);
@@ -62,7 +63,7 @@ const alertFromResponse = (chatId, text) => {
 };
 
 export const priceChangeHandler = async ({ price, pair } = {}) => {
-  console.log(price, pair);
+  logger.info(price + pair);
   const alerts = await getAlerts(pair);
   alerts.forEach((alert) => processAlert(alert, price));
 };
