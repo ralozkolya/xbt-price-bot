@@ -7,3 +7,4 @@ export const BITSTAMP_URL = "https://www.bitstamp.net/api/v2";
 export const NODE_ENV = process.env.NODE_ENV ?? "production";
 
 export const isProd = () => "production" === NODE_ENV;
+export const DEBOUNCE_TIME = process.env.DEBOUNCE_TIME ?? 2000;

@@ -7,6 +7,7 @@ import {
 } from "rxjs";
 import { WebSocket } from "ws";
 import { logger } from "./logger.js";
+import { DEBOUNCE_TIME } from "./config.js";
 
 const onMessage = async (message) => {
   message = JSON.parse(message);
@@ -62,7 +63,7 @@ export const connect = () => {
 
 export const priceTracker = new BehaviorSubject().pipe(
   filter((_) => _),
-  debounceTime(5000)
+  debounceTime(DEBOUNCE_TIME)
 );
 
 export const lastPrice = (pair) => {
