@@ -2,7 +2,7 @@ import createError from "http-errors";
 import { respondToInlineQuery } from "./inline-query.js";
 import { getHelp, start } from "./messages.js";
 import { TG_TOKEN } from "./config.js";
-import { alertFromCommand } from "./alerts.js";
+import { alertFromCommand, alertFromResponse } from "./alerts.js";
 import { current } from "./current.js";
 
 const validate = (token) => {
@@ -14,8 +14,6 @@ const validate = (token) => {
 export const handle = (token, body) => {
   validate(token);
 
-  console.log(!body.message || !body.message.via_bot);
-
   if (body.inline_query) {
     return respondToInlineQuery();
   }
@@ -23,8 +21,6 @@ export const handle = (token, body) => {
   if (!body.message || body.message.via_bot) {
     return;
   }
-
-  console.log(body);
 
   const {
     text,
@@ -40,7 +36,7 @@ export const handle = (token, body) => {
       return alertFromCommand(id, text);
     case text?.startsWith("/current"):
       return current(id, text);
-    case text:
+    default:
       return alertFromResponse(id, text);
   }
 };

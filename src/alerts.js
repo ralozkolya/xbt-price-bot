@@ -39,7 +39,7 @@ const setAlert = async (chatId, amount, currency = "usd") => {
   }
 };
 
-const alertFromResponse = (chatId, text) => {
+export const alertFromResponse = (chatId, text) => {
   let [amount, currency = "usd"] = text
     .split(" ")
     .map((str) => str.toLowerCase());
@@ -56,7 +56,7 @@ const alertFromResponse = (chatId, text) => {
 };
 
 export const priceChangeHandler = async ({ price, pair } = {}) => {
-  logger.info(price + pair);
+  logger.info(`${price} ${pair}`);
   const alerts = await getAlerts(pair);
   alerts.forEach((alert) => processAlert(alert, price));
 };
