@@ -4,7 +4,6 @@ import { koaBody } from "koa-body";
 import { handle } from "./src/telegram.js";
 import { init } from "./src/alerts.js";
 
-// Might need to add proxy: true here
 const app = new Koa();
 const router = new Router();
 
