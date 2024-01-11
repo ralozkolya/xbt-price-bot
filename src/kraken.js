@@ -14,6 +14,7 @@ import { logger } from "./logger.js";
 export const pairs = {
   usd: "XBT/USD",
   eur: "XBT/EUR",
+  gbp: "XBT/GBP",
 };
 
 const onMessage = async (message) => {
