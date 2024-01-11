@@ -52,6 +52,7 @@ export const connect = () => {
   logger.info("Connecting to Kraken WS server...");
 
   ws.on("open", () => {
+    tries = 0;
     logger.info("Connected!");
     subscribe(ws, "trade");
     // Reconnect every hour, Kraken seems to stop sending updates for long-running connections
