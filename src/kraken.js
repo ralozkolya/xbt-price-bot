@@ -47,8 +47,10 @@ export const connect = () => {
     logger.info("Connected!");
     subscribe(ws, "trade");
     // Reconnect every hour, Kraken seems to stop sending updates for long-running connections
-    logger.warn("Restarting to keep receiving updates...");
-    setTimeout(() => ws.close(), 3600000);
+    setTimeout(() => {
+      logger.warn("Restarting to keep receiving updates...");
+      ws.close();
+    }, 3600000);
   });
 
   ws.on("message", onMessage);
