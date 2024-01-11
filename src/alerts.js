@@ -1,9 +1,11 @@
 import hf from "human-format";
+import { filter } from "rxjs";
 import { deleteAlert, getAlerts, insertAlert } from "./db.js";
 import {
   connect,
   getCurrency,
   getPair,
+  isSupportedCurrency,
   lastPrice,
   priceTracker,
 } from "./kraken.js";
@@ -12,6 +14,7 @@ import {
   alertAcknowledgment,
   alertSet,
   alertTriggered,
+  unsupportedCurrency,
   unsupportedTarget,
 } from "./messages.js";
 
@@ -57,7 +60,7 @@ export const alertFromResponse = (chatId, text) => {
     .split(" ")
     .map((str) => str.toLowerCase());
 
-  if ("usd" !== currency && "eur" !== currency) {
+  if (!isSupportedCurrency(currency)) {
     return unsupportedCurrency(chatId);
   }
 
@@ -68,10 +71,13 @@ export const alertFromResponse = (chatId, text) => {
   return setAlert(chatId, amount, currency);
 };
 
-export const priceChangeHandler = async ({ price, pair } = {}) => {
-  logger.info(`${price} ${pair}`);
-  const alerts = await getAlerts(pair);
-  alerts.forEach((alert) => processAlert(alert, price));
+export const priceChangeHandler = async (change) => {
+  logger.info(JSON.stringify(change));
+
+  Object.keys(change).forEach(async (pair) => {
+    const alerts = await getAlerts(pair);
+    alerts.forEach((alert) => processAlert(alert, change[pair]));
+  });
 };
 
 export const alertFromCommand = (chatId, text) => {
@@ -86,5 +92,5 @@ export const alertFromCommand = (chatId, text) => {
 
 export const init = () => {
   connect();
-  priceTracker.subscribe(priceChangeHandler);
+  priceTracker.pipe(filter((_) => _)).subscribe(priceChangeHandler);
 };

@@ -1,20 +1,27 @@
 import {
-  BehaviorSubject,
+  ReplaySubject,
+  combineLatest,
   debounceTime,
-  filter,
   firstValueFrom,
+  map,
   take,
+  tap,
 } from "rxjs";
 import { WebSocket } from "ws";
-import { logger } from "./logger.js";
 import { DEBOUNCE_TIME } from "./config.js";
+import { logger } from "./logger.js";
+
+export const pairs = {
+  usd: "XBT/USD",
+  eur: "XBT/EUR",
+};
 
 const onMessage = async (message) => {
   message = JSON.parse(message);
 
   if (Array.isArray(message) && "trade" === message[2]) {
     const [, [[price]], , pair] = message;
-    priceTracker.next({ price, pair });
+    trackers[pair].next({ price, pair });
   }
 };
 
@@ -22,7 +29,7 @@ const subscribe = (ws, name) => {
   ws.send(
     JSON.stringify({
       event: "subscribe",
-      pair: ["BTC/USD", "BTC/EUR"],
+      pair: Object.values(pairs),
       subscription: {
         name,
       },
@@ -66,21 +73,41 @@ export const connect = () => {
   });
 };
 
-export const priceTracker = new BehaviorSubject().pipe(
-  filter((_) => _),
-  debounceTime(DEBOUNCE_TIME)
-);
+const trackers = Object.values(pairs).reduce((trackers, value) => {
+  trackers[value] = new ReplaySubject(1);
+  return trackers;
+}, {});
+
+export const priceTracker = new ReplaySubject(1);
+
+combineLatest(Object.values(trackers), (...pairs) => {
+  return pairs.reduce((pairs, value) => {
+    pairs[value.pair] = value.price;
+    return pairs;
+  }, {});
+})
+  .pipe(
+    debounceTime(DEBOUNCE_TIME),
+    tap((data) => priceTracker.next(data))
+  )
+  .subscribe();
 
 export const lastPrice = (pair) => {
   return firstValueFrom(
     priceTracker.pipe(
-      filter((price) => price.pair === pair),
-      take(1)
+      take(1),
+      map((price) => price[pair])
     )
   );
 };
 
-export const getPair = (currency) =>
-  "usd" === currency ? "XBT/USD" : "XBT/EUR";
+export const getPair = (currency) => pairs[currency] ?? pairs.usd;
 
-export const getCurrency = (pair) => ("XBT/USD" === pair ? "USD" : "EUR");
+export const getCurrency = (pair) => {
+  return (Object.entries(pairs).find((entry) => entry[1] === pair) ?? [
+    "usd",
+  ])[0].toUpperCase();
+};
+
+export const isSupportedCurrency = (currency) =>
+  Object.keys(pairs).includes(currency);
