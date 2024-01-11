@@ -12,11 +12,11 @@ export const current = async (chatId, text) => {
   }
 
   const pair = getPair(currency);
-  let currentPrice;
+  let price;
   let priceData;
 
   try {
-    ({ price: currentPrice } = await lastPrice(pair));
+    price = await lastPrice(pair);
     priceData = await getPriceData(currency);
   } catch (e) {
     return errorOccured(chatId, "Error retrieving the price data");
@@ -35,7 +35,7 @@ export const current = async (chatId, text) => {
   }));
 
   parsedData.push({
-    close: currentPrice,
+    close: price,
     date: dateFormatter.format(Date.now()),
   });
 
@@ -65,6 +65,6 @@ export const current = async (chatId, text) => {
 
   return getCurrent(chatId, chart.getUrl(), {
     CURRENCY: currency.toUpperCase(),
-    AMOUNT: String(currentPrice),
+    AMOUNT: String(price),
   });
 };

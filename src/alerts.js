@@ -41,7 +41,7 @@ const setAlert = async (chatId, amount, currency = "usd") => {
     const target = hf.parse(amount);
     const pair = getPair(currency);
 
-    const { price } = await lastPrice(pair);
+    const price = await lastPrice(pair);
     const alertOn = price > target ? "lower" : "higher";
 
     await insertAlert({ chatId, target, pair, alertOn });
