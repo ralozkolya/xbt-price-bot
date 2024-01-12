@@ -21,7 +21,7 @@ export const current = async (chatId, text) => {
   // Needed to force TG to redownload, as it seems to ignore Cache-Control header
   const v = Math.random().toString(36).substr(2);
 
-  return getCurrent(chatId, `${WEBHOOK}/chart?v=${v}`, {
+  return getCurrent(chatId, `${WEBHOOK}/chart/${currency}?v=${v}`, {
     CURRENCY: currency.toUpperCase(),
     AMOUNT: String(price),
   });
