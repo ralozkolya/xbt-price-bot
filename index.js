@@ -16,6 +16,7 @@ router.post("/:token", (ctx, next) => {
 
 router.get("/:token/chart", async (ctx, next) => {
   ctx.response.set("Content-Type", "image/png");
+  ctx.response.set("Cache-Control", "no-store");
   ctx.body = await getChart("usd");
   return next();
 });
