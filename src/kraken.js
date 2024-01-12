@@ -94,22 +94,20 @@ combineLatest(Object.values(trackers), (...pairs) => {
   )
   .subscribe();
 
-export const lastPrice = (pair) => {
-  return firstValueFrom(
+export const lastPrice = (pair) =>
+  firstValueFrom(
     priceTracker.pipe(
       take(1),
       map((price) => price[pair])
     )
   );
-};
 
 export const getPair = (currency) => pairs[currency] ?? pairs.usd;
 
-export const getCurrency = (pair) => {
-  return (Object.entries(pairs).find((entry) => entry[1] === pair) ?? [
+export const getCurrency = (pair) =>
+  (Object.entries(pairs).find((entry) => entry[1] === pair) ?? [
     "usd",
   ])[0].toUpperCase();
-};
 
 export const isSupportedCurrency = (currency) =>
   Object.keys(pairs).includes(currency);

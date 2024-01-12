@@ -6,7 +6,7 @@ import { errorOccured, unsupportedCurrency } from "./messages.js";
 
 const { ChartJSNodeCanvas } = ChartJSNode;
 
-export const getChart = async (currency) => {
+export const getChart = async (currency, chatId) => {
   if (!isSupportedCurrency(currency)) {
     return unsupportedCurrency(chatId);
   }

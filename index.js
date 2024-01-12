@@ -14,11 +14,11 @@ router.post("/:token", (ctx, next) => {
   return next();
 });
 
-router.get("/:token/chart/:currency", async (ctx, next) => {
-  const currency = ctx.request.params.token;
+router.get("/chart", async (ctx, next) => {
+  const { currency, chatId } = ctx.request.query;
   ctx.response.set("Content-Type", "image/png");
   ctx.response.set("Cache-Control", "no-store");
-  ctx.body = await getChart(currency);
+  ctx.body = await getChart(currency, chatId);
   return next();
 });
 

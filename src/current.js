@@ -18,10 +18,14 @@ export const current = async (chatId, text) => {
     return errorOccured(chatId, "Error retrieving the price data");
   }
 
-  // Needed to force TG to redownload, as it seems to ignore Cache-Control header
-  const v = Math.random().toString(36).substr(2);
+  const params = {
+    currency,
+    chatId,
+    // Needed to force TG to redownload, as it seems to ignore Cache-Control header
+    v: Math.random().toString(36).substr(2),
+  };
 
-  return getCurrent(chatId, `${WEBHOOK}/chart/${currency}?v=${v}`, {
+  return getCurrent(chatId, `${WEBHOOK}/chart?${new URLSearchParams(params)}`, {
     CURRENCY: currency.toUpperCase(),
     AMOUNT: String(price),
   });
