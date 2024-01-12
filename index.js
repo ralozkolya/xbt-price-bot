@@ -3,6 +3,7 @@ import Koa from "koa";
 import { koaBody } from "koa-body";
 import { handle } from "./src/telegram.js";
 import { init } from "./src/alerts.js";
+import { getChart } from "./src/chart.js";
 
 const app = new Koa();
 const router = new Router();
@@ -10,6 +11,12 @@ const router = new Router();
 router.post("/:token", (ctx, next) => {
   handle(ctx.request.params.token, ctx.request.body);
   ctx.body = null;
+  return next();
+});
+
+router.get("/:token/chart", async (ctx, next) => {
+  ctx.response.set("Content-Type", "image/png");
+  ctx.body = await getChart("usd");
   return next();
 });
 
