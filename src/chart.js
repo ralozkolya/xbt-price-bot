@@ -49,7 +49,12 @@ export const getChart = async (currency, chatId) => {
     data: {
       labels: parsedData.map((item) => item.date),
       datasets: [
-        { label: priceData.pair, data: parsedData.map((item) => item.close) },
+        {
+          label: priceData.pair,
+          data: parsedData.map((item) => item.close),
+          fill: true,
+          backgroundColor: "#f7931a",
+        },
       ],
     },
   });
