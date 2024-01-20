@@ -39,11 +39,13 @@ const subscribe = (ws, name) => {
 };
 
 let tries = 0;
+let timeout;
 const reconnect = (ws) => {
+  clearTimeout(timeout);
   ws.terminate();
-  const delay = Math.min(20000, 500 * 2 ** tries++);
+  const delay = Math.min(60000, 500 * 2 ** tries++);
   logger.warn(`Trying to reconnect in: ${delay / 1000} secs`);
-  setTimeout(connect, delay);
+  timeout = setTimeout(connect, delay);
 };
 
 export const connect = () => {
