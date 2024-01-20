@@ -68,7 +68,6 @@ export const connect = () => {
 
   ws.on("error", (error) => {
     logger.error(error.message);
-    reconnect(ws);
   });
 
   ws.on("close", () => {
