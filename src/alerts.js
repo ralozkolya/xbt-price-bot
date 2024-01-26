@@ -72,7 +72,11 @@ export const alertFromResponse = (chatId, text) => {
 };
 
 export const priceChangeHandler = async (change) => {
-  logger.info(JSON.stringify(change));
+  logger.info(
+    Object.entries(change)
+      .map(([key, value]) => `${key}: ${value}`)
+      .join(", ")
+  );
 
   Object.keys(change).forEach(async (pair) => {
     const alerts = await getAlerts(pair);

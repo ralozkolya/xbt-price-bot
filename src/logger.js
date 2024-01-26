@@ -1,12 +1,18 @@
-import winston from "winston";
+import { createLogger, format, transports } from "winston";
 import { isProd } from "./config.js";
 
-export const logger = winston.createLogger({
-  transports: new winston.transports.Console({
+const { combine, colorize, timestamp, printf } = format;
+
+export const logger = createLogger({
+  transports: new transports.Console({
     level: isProd() ? "warn" : "debug",
-    format: winston.format.combine(
-      winston.format.colorize(),
-      winston.format.simple()
+    format: combine(
+      colorize(),
+      timestamp({ format: "YYYY-MM-DD HH:mm:ss" }),
+      printf(
+        ({ timestamp, level, message }) =>
+          `[${timestamp}] (${level}): ${message}`
+      )
     ),
   }),
 });
