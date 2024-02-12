@@ -4,8 +4,9 @@ services:
   app:
     build: .
     volumes:
-      - ./data/db.sqlite:/app/data/db.sqlite
+      - ./:/app/
     ports:
       - $PORT:$PORT
+    command: node --watch index.js
     restart: unless-stopped
     
