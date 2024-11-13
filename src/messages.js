@@ -11,6 +11,7 @@ const fileContent = async (filename, replace = null, extension = ".md") => {
         ? Intl.NumberFormat().format(replace[key])
         : replace[key];
       text = text.replace(new RegExp(`%${key}%`, "g"), value);
+      text = text.replace(/-/g, "\\-");
     });
 
     text = text.replace(".", "\\.");
