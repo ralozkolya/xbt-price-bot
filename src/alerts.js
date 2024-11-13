@@ -43,12 +43,14 @@ const setAlert = async (chatId, amount, currency = "usd") => {
 
     const price = await lastPrice(pair);
     const alertOn = price > target ? "lower" : "higher";
+    const percentage = Math.round(((target - price) / price) * 10000) / 100;
 
     await insertAlert({ chatId, target, pair, alertOn });
     await alertSet(chatId, {
       CURRENCY: currency.toUpperCase(),
       AMOUNT: String(target),
       ALERT_ON: "higher" === alertOn ? "rises above" : "drops below",
+      PERCENTAGE: percentage,
     });
   } catch (e) {
     await unsupportedTarget(chatId);
