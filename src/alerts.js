@@ -67,7 +67,7 @@ export const alertFromResponse = (chatId, text) => {
   }
 
   if ("moon" === amount) {
-    amount = "100k";
+    amount = "500k";
   }
 
   return setAlert(chatId, amount, currency);
