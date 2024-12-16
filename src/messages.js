@@ -14,7 +14,11 @@ export const fileContent = async (
       const value = ["AMOUNT", "PRICE"].includes(key)
         ? Intl.NumberFormat().format(replace[key])
         : replace[key];
-      console.log(value);
+      replace["PERCENTAGE"] &&
+        (replace["PERCENTAGE"] = String(replace["PERCENTAGE"]).replace(
+          /-/g,
+          "\\-"
+        ));
       text = text.replace(new RegExp(`%${key}%`, "g"), value);
     });
 
