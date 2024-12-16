@@ -1,7 +1,11 @@
 import { readFile } from "node:fs/promises";
 import { sendMessage, sendPhoto } from "./api.js";
 
-const fileContent = async (filename, replace = null, extension = ".md") => {
+export const fileContent = async (
+  filename,
+  replace = null,
+  extension = ".md"
+) => {
   const buffer = await readFile(`./messages/${filename}${extension}`);
   let text = buffer.toString("utf-8");
 
@@ -10,8 +14,8 @@ const fileContent = async (filename, replace = null, extension = ".md") => {
       const value = ["AMOUNT", "PRICE"].includes(key)
         ? Intl.NumberFormat().format(replace[key])
         : replace[key];
+      console.log(value);
       text = text.replace(new RegExp(`%${key}%`, "g"), value);
-      text = text.replace(/-/g, "\\-");
     });
 
     text = text.replace(".", "\\.");
