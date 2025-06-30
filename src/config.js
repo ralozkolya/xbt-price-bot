@@ -8,4 +8,4 @@ export const WEBHOOK = process.env.WEBHOOK;
 export const NODE_ENV = process.env.NODE_ENV ?? "production";
 
 export const isProd = () => "production" === NODE_ENV;
-export const DEBOUNCE_TIME = process.env.DEBOUNCE_TIME ?? 2000;
+export const DEBOUNCE_TIME = Number.parseInt(process.env.DEBOUNCE_TIME) || 2000;
