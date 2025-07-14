@@ -3,7 +3,7 @@ import sqlite3 from "sqlite3";
 
 const getConnection = async () => {
   const db = await open({
-    filename: "./data/db.sqlite",
+    filename: "./db.sqlite",
     driver: sqlite3.cached.Database,
   });
 
