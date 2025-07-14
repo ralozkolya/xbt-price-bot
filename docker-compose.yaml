@@ -2,7 +2,7 @@ services:
   app:
     build: .
     volumes:
-      - ./db.sqlite:/app/db.sqlite
+      - ./data/db.sqlite:/app/data/db.sqlite
     ports:
       - $PORT:$PORT
     restart: unless-stopped
