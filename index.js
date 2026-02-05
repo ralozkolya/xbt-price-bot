@@ -22,6 +22,11 @@ router.get("/chart", async (ctx, next) => {
   return next();
 });
 
+router.get('/healthcheck', (ctx, next) => {
+  ctx.body = 'OK'
+  return next()
+})
+
 app.use(koaBody());
 app.use(router.routes());
 
