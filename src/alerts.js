@@ -19,20 +19,29 @@ import {
 } from "./messages.js";
 
 const processAlert = async (alert, price) => {
-  if (
+  const crossed =
     (alert.target < price && "higher" === alert.alertOn) ||
-    (alert.target > price && "lower" === alert.alertOn)
-  ) {
-    logger.info(
-      `Alert ${alert.id} sent. ${alert.pair} price went ${alert.alertOn} than ${alert.target} (${price})`
-    );
+    (alert.target > price && "lower" === alert.alertOn);
+  if (!crossed) return;
+
+  const result = await deleteAlert(alert.id);
+  if (result?.changes !== 1) {
+    return;
+  }
+
+  logger.info(
+    `Alert ${alert.id} sent. ${alert.pair} price went ${alert.alertOn} than ${alert.target} (${price})`
+  );
+
+  try {
     await alertTriggered(alert.chatId, {
       CURRENCY: getCurrency(alert.pair),
       AMOUNT: alert.target,
       PRICE: price,
       ACTION: "lower" === alert.alertOn ? "dropped below" : "risen above",
     });
-    deleteAlert(alert.id);
+  } catch (e) {
+    logger.error(`Failed to send alertTriggered for alert ${alert.id}: ${e.message}`);
   }
 };
 
@@ -58,6 +67,10 @@ const setAlert = async (chatId, amount, currency = "usd") => {
 };
 
 export const alertFromResponse = (chatId, text) => {
+  if (typeof text !== "string" || !text.trim()) {
+    return unsupportedTarget(chatId);
+  }
+
   let [amount, currency = "usd"] = text
     .split(" ")
     .map((str) => str.toLowerCase());
@@ -80,10 +93,12 @@ export const priceChangeHandler = async (change) => {
       .join(", ")
   );
 
-  Object.keys(change).forEach(async (pair) => {
-    const alerts = await getAlerts(pair);
-    alerts.forEach((alert) => processAlert(alert, change[pair]));
-  });
+  await Promise.all(
+    Object.keys(change).map(async (pair) => {
+      const alerts = await getAlerts(pair);
+      await Promise.all(alerts.map((alert) => processAlert(alert, change[pair])));
+    })
+  );
 };
 
 export const alertFromCommand = (chatId, text) => {
