@@ -6,6 +6,7 @@ import {
   map,
   take,
   tap,
+  timeout,
 } from "rxjs";
 import { WebSocket } from "ws";
 import { DEBOUNCE_TIME } from "./config.js";
@@ -64,13 +65,13 @@ const subscribe = (ws, name) => {
 };
 
 let tries = 0;
-let timeout;
+let reconnectTimer;
 const reconnect = (ws) => {
-  clearTimeout(timeout);
+  clearTimeout(reconnectTimer);
   ws.terminate();
   const delay = Math.min(60000, 500 * 2 ** tries++);
   logger.warn(`Trying to reconnect in: ${delay / 1000} secs`);
-  timeout = setTimeout(connect, delay);
+  reconnectTimer = setTimeout(connect, delay);
 };
 
 export const connect = () => {
@@ -97,34 +98,57 @@ export const connect = () => {
 
   ws.on("close", () => {
     logger.error("Channel closed");
+    resetTrackers();
     reconnect(ws);
   });
 };
 
-const trackers = Object.values(pairs).reduce((trackers, value) => {
-  trackers[value] = new ReplaySubject(1);
-  return trackers;
-}, {});
-
+let trackers;
+let combinedSubscription;
 export const priceTracker = new ReplaySubject(1);
 
-combineLatest(Object.values(trackers), (...pairs) => {
-  return pairs.reduce((pairs, value) => {
-    pairs[value.pair] = value.price;
-    return pairs;
+const buildTrackers = () => {
+  trackers = Object.values(pairs).reduce((acc, value) => {
+    acc[value] = new ReplaySubject(1);
+    return acc;
   }, {});
-})
-  .pipe(
-    debounceTime(DEBOUNCE_TIME),
-    tap((data) => priceTracker.next(data))
-  )
-  .subscribe();
+
+  combinedSubscription = combineLatest(Object.values(trackers), (...pairs) => {
+    return pairs.reduce((pairs, value) => {
+      pairs[value.pair] = value.price;
+      return pairs;
+    }, {});
+  })
+    .pipe(
+      debounceTime(DEBOUNCE_TIME),
+      tap((data) => priceTracker.next(data))
+    )
+    .subscribe();
+};
+
+const resetTrackers = () => {
+  if (combinedSubscription) {
+    combinedSubscription.unsubscribe();
+    combinedSubscription = undefined;
+  }
+  if (trackers) {
+    for (const subject of Object.values(trackers)) {
+      subject.complete();
+    }
+  }
+  buildTrackers();
+};
+
+buildTrackers();
+
+const LAST_PRICE_TIMEOUT_MS = 5000;
 
 export const lastPrice = (pair) =>
   firstValueFrom(
-    priceTracker.pipe(
+    trackers[pair].pipe(
       take(1),
-      map((price) => price[pair])
+      map((entry) => entry.price),
+      timeout(LAST_PRICE_TIMEOUT_MS)
     )
   );
 
