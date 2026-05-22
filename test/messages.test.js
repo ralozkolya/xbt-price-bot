@@ -62,3 +62,22 @@ test("fileContent passes a unicode replacement value through unchanged", async (
   });
   assert.ok(text.includes("€"), `expected € to survive, got: ${text}`);
 });
+
+test("fileContent escapes the full MarkdownV2 special-char set in values", async () => {
+  // Each MarkdownV2 special per Telegram spec must appear single-escaped.
+  const value = "_*[]()~`>#+-=|{}.!\\";
+  const text = await fileContent("alert-set", {
+    CURRENCY: value,
+    AMOUNT: 1,
+    ALERT_ON: "rises above",
+    PERCENTAGE: 0,
+  });
+  for (const ch of "_*[]()~`>#+-=|{}.!") {
+    assert.ok(
+      text.includes(`\\${ch}`),
+      `expected \\${ch} in escaped output, got: ${text}`
+    );
+  }
+  // Backslash escapes to \\ (two chars in the string).
+  assert.ok(text.includes("\\\\"), `expected \\\\ in escaped output: ${text}`);
+});

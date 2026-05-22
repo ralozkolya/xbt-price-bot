@@ -3,17 +3,19 @@ import { sendMessage, sendPhoto } from "./api.js";
 
 const numberFormatter = new Intl.NumberFormat("en-US");
 
+// Full MarkdownV2 special-char set per Telegram's spec:
+// https://core.telegram.org/bots/api#markdownv2-style
+const MD_V2_SPECIALS = /([_*[\]()~`>#+\-=|{}.!\\])/g;
+const escapeMarkdownV2 = (s) => String(s).replace(MD_V2_SPECIALS, "\\$1");
+
 const buildSubstitutions = (replace) => {
   const out = {};
   for (const key of Object.keys(replace)) {
     const raw = replace[key];
-    if (["AMOUNT", "PRICE"].includes(key)) {
-      out[key] = numberFormatter.format(raw);
-    } else if (key === "PERCENTAGE") {
-      out[key] = String(raw).replace(/-/g, "\\-");
-    } else {
-      out[key] = String(raw);
-    }
+    const formatted = ["AMOUNT", "PRICE"].includes(key)
+      ? numberFormatter.format(raw)
+      : String(raw);
+    out[key] = escapeMarkdownV2(formatted);
   }
   return out;
 };
@@ -31,7 +33,6 @@ export const fileContent = async (
     for (const key of Object.keys(escaped)) {
       text = text.replace(new RegExp(`%${key}%`, "g"), escaped[key]);
     }
-    text = text.replace(/\./g, "\\.");
   }
 
   return text;
