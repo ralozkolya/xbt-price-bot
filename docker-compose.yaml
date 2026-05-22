@@ -12,6 +12,7 @@ services:
       DEBOUNCE_TIME: ${DEBOUNCE_TIME:-}
       DB_PATH: ${DB_PATH:-/app/data/db.sqlite}
     volumes:
+      # TODO: UID/GID alignment for prod bind mounts — deferred
       - ./data/db.sqlite:/app/data/db.sqlite
     ports:
       - $PORT:$PORT
