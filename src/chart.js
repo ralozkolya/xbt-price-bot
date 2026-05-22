@@ -1,26 +1,19 @@
 import ChartJSNode from "chartjs-node-canvas";
+import createError from "http-errors";
 
 import { getPriceData } from "./api.js";
 import { getPair, isSupportedCurrency, lastPrice } from "./kraken.js";
-import { errorOccured, unsupportedCurrency } from "./messages.js";
 
 const { ChartJSNodeCanvas } = ChartJSNode;
 
-export const getChart = async (currency, chatId) => {
+export const getChart = async (currency) => {
   if (!isSupportedCurrency(currency)) {
-    return unsupportedCurrency(chatId);
+    throw createError(400, "unsupported currency");
   }
 
   const pair = getPair(currency);
-  let price;
-  let priceData;
-
-  try {
-    price = await lastPrice(pair);
-    priceData = await getPriceData(currency);
-  } catch (e) {
-    return errorOccured(chatId, "Error retrieving the price data");
-  }
+  const price = await lastPrice(pair);
+  const priceData = await getPriceData(currency);
 
   const dateFormatter = Intl.DateTimeFormat("en-GB", {
     month: "short",
