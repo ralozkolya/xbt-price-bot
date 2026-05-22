@@ -12,12 +12,13 @@ import {
 } from "./kraken.js";
 import { logger } from "./logger.js";
 import {
+  changeAlertAcknowledgment,
   changeAlertSet,
   changeAlertTriggered,
   errorOccured,
   tooManyChangeAlerts,
+  unsupportedChangeTarget,
   unsupportedCurrency,
-  unsupportedTarget,
 } from "./messages.js";
 
 export let COOLDOWN_MS = 15 * 60 * 1000;
@@ -69,11 +70,11 @@ const trailingAverage = (buf) => {
 
 export const setChangeAlert = async (chatId, percentRaw, currency = "usd") => {
   if (typeof percentRaw !== "string" || !PERCENT_RE.test(percentRaw)) {
-    return unsupportedTarget(chatId);
+    return unsupportedChangeTarget(chatId);
   }
   const threshold = Number.parseFloat(percentRaw);
   if (!Number.isFinite(threshold) || threshold <= 0 || threshold > 1000) {
-    return unsupportedTarget(chatId);
+    return unsupportedChangeTarget(chatId);
   }
 
   try {
@@ -97,7 +98,7 @@ export const setChangeAlert = async (chatId, percentRaw, currency = "usd") => {
 
 export const changeAlertFromResponse = (chatId, text) => {
   if (typeof text !== "string" || !text.trim()) {
-    return unsupportedTarget(chatId);
+    return unsupportedChangeTarget(chatId);
   }
 
   const [percentRaw, currency = "usd"] = text
@@ -116,7 +117,7 @@ export const changeAlertFromCommand = (chatId, text) => {
   const raw = text.replace(/^\s*\/changealert(@\w+)?\s*/i, "").trim();
 
   if (!raw) {
-    return unsupportedTarget(chatId);
+    return changeAlertAcknowledgment(chatId);
   }
 
   return changeAlertFromResponse(chatId, raw);

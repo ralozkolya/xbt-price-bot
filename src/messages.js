@@ -50,8 +50,16 @@ export const alertAcknowledgment = async (chatId) => {
   return sendMessage(chatId, await fileContent("alert-acknowledgment"));
 };
 
+export const changeAlertAcknowledgment = async (chatId) => {
+  return sendMessage(chatId, await fileContent("change-alert-acknowledgment"));
+};
+
 export const unsupportedTarget = async (chatId) => {
   return sendMessage(chatId, await fileContent("unsupported-target"));
+};
+
+export const unsupportedChangeTarget = async (chatId) => {
+  return sendMessage(chatId, await fileContent("unsupported-change-target"));
 };
 
 export const unsupportedCurrency = async (chatId) => {

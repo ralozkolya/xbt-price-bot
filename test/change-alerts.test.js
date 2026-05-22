@@ -208,9 +208,7 @@ test("setChangeAlert: /changealert 2.5 eur registers fractional threshold in EUR
   assert.equal(rows[0].threshold, 2.5);
 });
 
-test("changeAlertFromCommand: /changealert with no argument hits unsupportedTarget", async () => {
-  // Unlike /alert (which has alertAcknowledgment), /changealert with no arg
-  // routes to unsupportedTarget per src/change-alerts.js#changeAlertFromCommand.
+test("changeAlertFromCommand: /changealert with no argument hits changeAlertAcknowledgment", async () => {
   const chat = "ca-reg-noarg";
   const { scope, seen } = captureSendMessage();
 
@@ -219,8 +217,8 @@ test("changeAlertFromCommand: /changealert with no argument hits unsupportedTarg
   const body = await seen;
   assert.ok(scope.isDone());
   assert.ok(
-    /target format could not be understood/i.test(body.text),
-    `expected unsupportedTarget template, got: ${body.text}`
+    /please send the percentage threshold/i.test(body.text),
+    `expected changeAlertAcknowledgment template, got: ${body.text}`
   );
 });
 
@@ -261,20 +259,25 @@ const expectUnsupportedTarget = async (chat, fn) => {
   const body = await seen;
   assert.ok(scope.isDone(), `sendMessage was not invoked for ${chat}`);
   assert.ok(
-    /target format could not be understood/i.test(body.text),
+    /change threshold could not be understood/i.test(body.text),
     `expected unsupportedTarget, got: ${body.text}`
   );
   const rows = await getChangeAlertsByChatId(chat);
   assert.equal(rows.length, 0, `no row should have been inserted for ${chat}`);
 };
 
-test("setChangeAlert: empty percent is rejected with unsupportedTarget", async () => {
-  // changeAlertFromCommand strips the slash + bot suffix and trims; a
-  // whitespace-only payload hits the empty branch.
+test("setChangeAlert: whitespace-only payload routes to changeAlertAcknowledgment (same as bare /changealert)", async () => {
   const chat = "ca-rej-empty";
-  await expectUnsupportedTarget(chat, () =>
-    changeAlertFromCommand(chat, "/changealert    ")
+  const { scope, seen } = captureSendMessage();
+  await changeAlertFromCommand(chat, "/changealert    ");
+  const body = await seen;
+  assert.ok(scope.isDone());
+  assert.ok(
+    /please send the percentage threshold/i.test(body.text),
+    `expected changeAlertAcknowledgment, got: ${body.text}`
   );
+  const rows = await getChangeAlertsByChatId(chat);
+  assert.equal(rows.length, 0, "no row should have been inserted");
 });
 
 test("setChangeAlert: zero is rejected", async () => {
@@ -752,9 +755,6 @@ test("routing regex: /^\\/changealert(@\\w+)?(\\s|$)/i matches the right set of 
 });
 
 test("webhook routing: /changealert is dispatched to changeAlertFromCommand, not /alert", async () => {
-  // /changealert with no arg → unsupportedTarget. /alert with no arg →
-  // alertAcknowledgment ("Please send the target price for the alert..."). If
-  // /changealert were swallowed by /alert, we'd see the price-alert prompt.
   const { scope, seen } = captureSendMessage();
   const res = await postJson(`/${TG_TOKEN}`, {
     update_id: 2001,
@@ -772,8 +772,8 @@ test("webhook routing: /changealert is dispatched to changeAlertFromCommand, not
     `/changealert was incorrectly routed to /alert: ${body.text}`
   );
   assert.ok(
-    /target format could not be understood/i.test(body.text),
-    `expected unsupportedTarget for bare /changealert, got: ${body.text}`
+    /please send the percentage threshold/i.test(body.text),
+    `expected changeAlertAcknowledgment for bare /changealert, got: ${body.text}`
   );
 });
 
