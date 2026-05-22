@@ -1,6 +1,23 @@
 import { readFile } from "node:fs/promises";
 import { sendMessage, sendPhoto } from "./api.js";
 
+const numberFormatter = new Intl.NumberFormat("en-US");
+
+const buildSubstitutions = (replace) => {
+  const out = {};
+  for (const key of Object.keys(replace)) {
+    const raw = replace[key];
+    if (["AMOUNT", "PRICE"].includes(key)) {
+      out[key] = numberFormatter.format(raw);
+    } else if (key === "PERCENTAGE") {
+      out[key] = String(raw).replace(/-/g, "\\-");
+    } else {
+      out[key] = String(raw);
+    }
+  }
+  return out;
+};
+
 export const fileContent = async (
   filename,
   replace = null,
@@ -10,19 +27,11 @@ export const fileContent = async (
   let text = buffer.toString("utf-8");
 
   if (replace) {
-    Object.keys(replace).forEach((key) => {
-      const value = ["AMOUNT", "PRICE"].includes(key)
-        ? Intl.NumberFormat().format(replace[key])
-        : replace[key];
-      replace["PERCENTAGE"] &&
-        (replace["PERCENTAGE"] = String(replace["PERCENTAGE"]).replace(
-          /-/g,
-          "\\-"
-        ));
-      text = text.replace(new RegExp(`%${key}%`, "g"), value);
-    });
-
-    text = text.replace(".", "\\.");
+    const escaped = buildSubstitutions(replace);
+    for (const key of Object.keys(escaped)) {
+      text = text.replace(new RegExp(`%${key}%`, "g"), escaped[key]);
+    }
+    text = text.replace(/\./g, "\\.");
   }
 
   return text;
