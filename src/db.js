@@ -9,7 +9,7 @@ const getConnection = async () => {
   });
 
   await db.migrate({
-    migrationsPath: "./data/migrations",
+    migrationsPath: "./migrations",
   });
 
   return db;
