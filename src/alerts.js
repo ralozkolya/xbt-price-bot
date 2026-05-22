@@ -1,6 +1,6 @@
 import hf from "human-format";
 import { filter } from "rxjs";
-import { deleteAlert, getAlerts, insertAlert } from "./db.js";
+import { deleteAlert, getAlerts, getAlertsByChatId, insertAlert } from "./db.js";
 import {
   connect,
   getCurrency,
@@ -13,8 +13,11 @@ import { logger } from "./logger.js";
 import {
   alertAcknowledgment,
   alertSet,
+  alertsEmpty,
+  alertsList,
   alertTriggered,
   errorOccured,
+  numberFormatter,
   unsupportedCurrency,
   unsupportedTarget,
 } from "./messages.js";
@@ -113,6 +116,42 @@ export const priceChangeHandler = async (change) => {
       await Promise.all(alerts.map((alert) => processAlert(alert, change[pair])));
     })
   );
+};
+
+// Telegram caps sendMessage payloads at 4096 chars. Reserve headroom for the
+// surrounding template (alerts-list.md) and its own escape overhead.
+const ALERTS_BODY_BUDGET = 4000;
+const MD_V2_SPECIALS_GLOBAL = /[_*[\]()~`>#+\-=|{}.!\\]/g;
+const escapedLength = (s) =>
+  s.length + (s.match(MD_V2_SPECIALS_GLOBAL)?.length ?? 0);
+
+export const listAlerts = async (chatId) => {
+  try {
+    const rows = await getAlertsByChatId(chatId);
+    if (rows.length === 0) {
+      return alertsEmpty(chatId);
+    }
+    const lines = rows.map((row) => {
+      const direction = row.alertOn === "higher" ? "rises above" : "drops below";
+      const amount = numberFormatter.format(row.target);
+      const currency = getCurrency(row.pair);
+      return `#${row.id} — ${direction} ${amount} ${currency}`;
+    });
+    // Walk newest-first so older alerts get dropped when over budget.
+    const kept = [];
+    let used = 0;
+    for (let i = lines.length - 1; i >= 0; i--) {
+      const cost = escapedLength(lines[i]) + (kept.length > 0 ? 1 : 0);
+      if (used + cost > ALERTS_BODY_BUDGET) break;
+      kept.push(lines[i]);
+      used += cost;
+    }
+    kept.reverse();
+    return alertsList(chatId, { ALERTS: kept.join("\n") });
+  } catch (e) {
+    logger.error(`listAlerts failed for chat ${chatId}: ${e.message}`);
+    return errorOccured(chatId);
+  }
 };
 
 export const alertFromCommand = (chatId, text) => {

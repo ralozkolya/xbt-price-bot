@@ -1,7 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { sendMessage, sendPhoto } from "./api.js";
 
-const numberFormatter = new Intl.NumberFormat("en-US");
+export const numberFormatter = new Intl.NumberFormat("en-US");
 
 // Full MarkdownV2 special-char set per Telegram's spec:
 // https://core.telegram.org/bots/api#markdownv2-style
@@ -64,6 +64,14 @@ export const alertSet = async (chatId, replace = null) => {
 
 export const alertTriggered = async (chatId, replace = null) => {
   return sendMessage(chatId, await fileContent("alert-triggered", replace));
+};
+
+export const alertsEmpty = async (chatId) => {
+  return sendMessage(chatId, await fileContent("alerts-empty"));
+};
+
+export const alertsList = async (chatId, replace = null) => {
+  return sendMessage(chatId, await fileContent("alerts-list", replace));
 };
 
 export const getCurrent = async (chatId, url, replace = null) => {

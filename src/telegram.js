@@ -4,7 +4,7 @@ import createError from "http-errors";
 import { respondToInlineQuery } from "./inline-query.js";
 import { getHelp, start } from "./messages.js";
 import { TG_TOKEN, TG_WEBHOOK_SECRET } from "./config.js";
-import { alertFromCommand, alertFromResponse } from "./alerts.js";
+import { alertFromCommand, alertFromResponse, listAlerts } from "./alerts.js";
 import { current } from "./current.js";
 
 const constantTimeEquals = (a, b) => {
@@ -52,6 +52,8 @@ export const handle = (token, body, headerSecret) => {
       return start(id);
     case text.startsWith("/help"):
       return getHelp(id);
+    case /^\/alerts(@\w+)?(\s|$)/i.test(text):
+      return listAlerts(id);
     case text.startsWith("/alert"):
       return alertFromCommand(id, text);
     case text.startsWith("/current"):

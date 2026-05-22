@@ -21,6 +21,13 @@ export const getAlerts = (pair) => {
   return db.all("select * from alerts where pair = ?", [pair]);
 };
 
+export const getAlertsByChatId = (chatId) => {
+  return db.all(
+    "select id, target, pair, alertOn from alerts where chatId = ? order by id asc",
+    [chatId]
+  );
+};
+
 export const insertAlert = ({ chatId, target, pair, alertOn }) => {
   return db.run(
     "insert into alerts (chatId, target, pair, alertOn) values (?, ?, ?, ?)",

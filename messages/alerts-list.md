@@ -1,0 +1,3 @@
+Your active alerts:
+
+%ALERTS%

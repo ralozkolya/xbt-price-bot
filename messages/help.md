@@ -14,3 +14,5 @@ Currently supported currencies: USD \(default\), EUR, GBP\.
 Examples:
 • /alert 22K
 • /alert 31245 EUR
+
+/alerts \- List your active alerts\.
