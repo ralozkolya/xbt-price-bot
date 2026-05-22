@@ -12,6 +12,8 @@ export const isProd = () => "production" === NODE_ENV;
 export const DEBOUNCE_TIME = Number.parseInt(process.env.DEBOUNCE_TIME) || 2000;
 export const PORT = Number.parseInt(process.env.PORT) || 3000;
 export const DB_PATH = process.env.DB_PATH ?? "./data/db.sqlite";
+// Number of price samples held in the per-pair trailing window (NOT seconds).
+export const CHANGE_WINDOW = Number.parseInt(process.env.CHANGE_WINDOW) || 60;
 
 const missing = [];
 if (!TG_TOKEN) missing.push("TG_TOKEN");
@@ -26,6 +28,7 @@ export const resolvedConfig = Object.freeze({
   WEBHOOK,
   DEBOUNCE_TIME,
   DB_PATH,
+  CHANGE_WINDOW,
   TG_TOKEN: TG_TOKEN ? `<set:${TG_TOKEN.slice(0, 3)}***>` : "<missing>",
   TG_WEBHOOK_SECRET: TG_WEBHOOK_SECRET ? "<set>" : "<missing>",
 });

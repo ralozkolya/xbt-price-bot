@@ -121,6 +121,12 @@ let trackers;
 let combinedSubscription;
 export const priceTracker = new ReplaySubject(1);
 
+const resetListeners = new Set();
+export const onTrackerReset = (fn) => {
+  resetListeners.add(fn);
+  return () => resetListeners.delete(fn);
+};
+
 const buildTrackers = () => {
   trackers = Object.values(pairs).reduce((acc, value) => {
     acc[value] = new ReplaySubject(1);
@@ -148,6 +154,13 @@ const resetTrackers = () => {
   if (trackers) {
     for (const subject of Object.values(trackers)) {
       subject.complete();
+    }
+  }
+  for (const fn of resetListeners) {
+    try {
+      fn();
+    } catch (e) {
+      logger.warn(`tracker reset listener failed: ${e.message}`);
     }
   }
   buildTrackers();

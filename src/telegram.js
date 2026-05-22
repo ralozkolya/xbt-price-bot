@@ -5,6 +5,7 @@ import { respondToInlineQuery } from "./inline-query.js";
 import { getHelp, start } from "./messages.js";
 import { TG_TOKEN, TG_WEBHOOK_SECRET } from "./config.js";
 import { alertFromCommand, alertFromResponse, listAlerts } from "./alerts.js";
+import { changeAlertFromCommand } from "./change-alerts.js";
 import { current } from "./current.js";
 
 export const COMMANDS = [
@@ -12,6 +13,7 @@ export const COMMANDS = [
   { command: "help", description: "Show help" },
   { command: "current", description: "Show current XBT price" },
   { command: "alert", description: "Set a price alert" },
+  { command: "changealert", description: "Alert on significant % moves" },
   { command: "alerts", description: "List your active alerts" },
 ];
 
@@ -62,6 +64,8 @@ export const handle = (token, body, headerSecret) => {
       return getHelp(id);
     case /^\/alerts(@\w+)?(\s|$)/i.test(text):
       return listAlerts(id);
+    case /^\/changealert(@\w+)?(\s|$)/i.test(text):
+      return changeAlertFromCommand(id, text);
     case text.startsWith("/alert"):
       return alertFromCommand(id, text);
     case text.startsWith("/current"):

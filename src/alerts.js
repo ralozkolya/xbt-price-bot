@@ -1,5 +1,10 @@
 import hf from "human-format";
 import { filter } from "rxjs";
+import {
+  listChangeAlerts,
+  priceChangeHandler as changePriceHandler,
+  resetChangeAlertState,
+} from "./change-alerts.js";
 import { deleteAlert, getAlerts, getAlertsByChatId, insertAlert } from "./db.js";
 import {
   connect,
@@ -7,6 +12,7 @@ import {
   getPair,
   isSupportedCurrency,
   lastPrice,
+  onTrackerReset,
   priceTracker,
 } from "./kraken.js";
 import { logger } from "./logger.js";
@@ -127,16 +133,24 @@ const escapedLength = (s) =>
 
 export const listAlerts = async (chatId) => {
   try {
-    const rows = await getAlertsByChatId(chatId);
-    if (rows.length === 0) {
+    const [rows, changeRows] = await Promise.all([
+      getAlertsByChatId(chatId),
+      listChangeAlerts(chatId),
+    ]);
+    if (rows.length === 0 && changeRows.length === 0) {
       return alertsEmpty(chatId);
     }
-    const lines = rows.map((row) => {
+    const targetLines = rows.map((row) => {
       const direction = row.alertOn === "higher" ? "rises above" : "drops below";
       const amount = numberFormatter.format(row.target);
       const currency = getCurrency(row.pair);
       return `#${row.id} — ${direction} ${amount} ${currency}`;
     });
+    const changeLines = changeRows.map((row) => {
+      const currency = getCurrency(row.pair);
+      return `Δ#${row.id} — moves ≥ ${row.threshold}% ${currency}`;
+    });
+    const lines = [...targetLines, ...changeLines];
     // Walk newest-first so older alerts get dropped when over budget.
     const kept = [];
     let used = 0;
@@ -165,6 +179,14 @@ export const alertFromCommand = (chatId, text) => {
 };
 
 export const init = () => {
+  onTrackerReset(resetChangeAlertState);
   connect();
-  priceTracker.pipe(filter((_) => _)).subscribe(priceChangeHandler);
+  priceTracker.pipe(filter((_) => _)).subscribe((change) => {
+    Promise.resolve(priceChangeHandler(change)).catch((e) =>
+      logger.error(`priceChangeHandler failed: ${e.message}`)
+    );
+    Promise.resolve(changePriceHandler(change)).catch((e) =>
+      logger.error(`change-alerts priceChangeHandler failed: ${e.message}`)
+    );
+  });
 };

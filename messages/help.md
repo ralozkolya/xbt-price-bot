@@ -15,4 +15,11 @@ Examples:
 • /alert 22K
 • /alert 31245 EUR
 
+/changealert _percent currency_ \- Alert on significant % moves vs the trailing average\.
+Currently supported currencies: USD \(default\), EUR, GBP\.
+
+Examples:
+• /changealert 5
+• /changealert 2\.5 EUR
+
 /alerts \- List your active alerts\.

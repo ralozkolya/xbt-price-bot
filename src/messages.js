@@ -12,7 +12,7 @@ const buildSubstitutions = (replace) => {
   const out = {};
   for (const key of Object.keys(replace)) {
     const raw = replace[key];
-    const formatted = ["AMOUNT", "PRICE"].includes(key)
+    const formatted = ["AMOUNT", "PRICE", "CURRENT", "AVERAGE"].includes(key)
       ? numberFormatter.format(raw)
       : String(raw);
     out[key] = escapeMarkdownV2(formatted);
@@ -72,6 +72,18 @@ export const alertsEmpty = async (chatId) => {
 
 export const alertsList = async (chatId, replace = null) => {
   return sendMessage(chatId, await fileContent("alerts-list", replace));
+};
+
+export const changeAlertSet = async (chatId, replace = null) => {
+  return sendMessage(chatId, await fileContent("change-alert-set", replace));
+};
+
+export const changeAlertTriggered = async (chatId, replace = null) => {
+  return sendMessage(chatId, await fileContent("change-alert-triggered", replace));
+};
+
+export const tooManyChangeAlerts = async (chatId) => {
+  return sendMessage(chatId, await fileContent("too-many-change-alerts"));
 };
 
 export const getCurrent = async (chatId, url, replace = null) => {
