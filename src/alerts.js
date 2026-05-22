@@ -14,14 +14,15 @@ import {
   alertAcknowledgment,
   alertSet,
   alertTriggered,
+  errorOccured,
   unsupportedCurrency,
   unsupportedTarget,
 } from "./messages.js";
 
 const processAlert = async (alert, price) => {
   const crossed =
-    (alert.target < price && "higher" === alert.alertOn) ||
-    (alert.target > price && "lower" === alert.alertOn);
+    (alert.target <= price && "higher" === alert.alertOn) ||
+    (alert.target >= price && "lower" === alert.alertOn);
   if (!crossed) return;
 
   const result = await deleteAlert(alert.id);
@@ -46,11 +47,22 @@ const processAlert = async (alert, price) => {
 };
 
 const setAlert = async (chatId, amount, currency = "usd") => {
+  let target;
   try {
-    const target = hf.parse(amount);
-    const pair = getPair(currency);
+    target = hf.parse(amount);
+  } catch {
+    return unsupportedTarget(chatId);
+  }
+  if (!Number.isFinite(target) || target <= 0) {
+    return unsupportedTarget(chatId);
+  }
 
+  try {
+    const pair = getPair(currency);
     const price = await lastPrice(pair);
+    if (target === price) {
+      return unsupportedTarget(chatId);
+    }
     const alertOn = price > target ? "lower" : "higher";
     const percentage = Math.round(((target - price) / price) * 10000) / 100;
 
@@ -62,7 +74,8 @@ const setAlert = async (chatId, amount, currency = "usd") => {
       PERCENTAGE: percentage,
     });
   } catch (e) {
-    await unsupportedTarget(chatId);
+    logger.error(`setAlert failed for chat ${chatId}: ${e.message}`);
+    await errorOccured(chatId);
   }
 };
 
@@ -72,7 +85,8 @@ export const alertFromResponse = (chatId, text) => {
   }
 
   let [amount, currency = "usd"] = text
-    .split(" ")
+    .trim()
+    .split(/\s+/)
     .map((str) => str.toLowerCase());
 
   if (!isSupportedCurrency(currency)) {
@@ -102,7 +116,7 @@ export const priceChangeHandler = async (change) => {
 };
 
 export const alertFromCommand = (chatId, text) => {
-  const targetRaw = text.replace(/\/alert(@XbtPriceBot)?\s?/, "");
+  const targetRaw = text.replace(/^\s*\/alert(@\w+)?\s*/i, "").trim();
 
   if (!targetRaw) {
     return alertAcknowledgment(chatId);
