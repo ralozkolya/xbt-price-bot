@@ -1,6 +1,16 @@
 services:
   app:
     build: .
+    env_file:
+      - .env
+    environment:
+      NODE_ENV: ${NODE_ENV:-production}
+      PORT: ${PORT}
+      TG_TOKEN: ${TG_TOKEN}
+      TG_WEBHOOK_SECRET: ${TG_WEBHOOK_SECRET:-}
+      WEBHOOK: ${WEBHOOK}
+      DEBOUNCE_TIME: ${DEBOUNCE_TIME:-}
+      DB_PATH: ${DB_PATH:-/app/data/db.sqlite}
     volumes:
       - ./data/db.sqlite:/app/data/db.sqlite
     ports:
