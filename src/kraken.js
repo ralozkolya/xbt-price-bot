@@ -17,13 +17,38 @@ export const pairs = {
   gbp: "XBT/GBP",
 };
 
-const onMessage = async (message) => {
-  message = JSON.parse(message);
-
-  if (Array.isArray(message) && "trade" === message[2]) {
-    const [, [[price]], , pair] = message;
-    trackers[pair].next({ price, pair });
+const onMessage = async (raw) => {
+  let message;
+  try {
+    message = JSON.parse(raw);
+  } catch (e) {
+    logger.warn(`Kraken WS: invalid JSON payload (${e.message})`);
+    return;
   }
+
+  if (!Array.isArray(message) || "trade" !== message[2]) {
+    return;
+  }
+
+  const [, trades, , pair] = message;
+  if (!Object.prototype.hasOwnProperty.call(trackers, pair)) {
+    return;
+  }
+  if (!Array.isArray(trades) || trades.length === 0) {
+    return;
+  }
+  const lastTrade = trades[trades.length - 1];
+  if (!Array.isArray(lastTrade) || lastTrade.length === 0) {
+    return;
+  }
+
+  const price = Number(lastTrade[0]);
+  if (!Number.isFinite(price)) {
+    logger.warn(`Kraken WS: non-finite price for ${pair} (${lastTrade[0]})`);
+    return;
+  }
+
+  trackers[pair].next({ price, pair });
 };
 
 const subscribe = (ws, name) => {
