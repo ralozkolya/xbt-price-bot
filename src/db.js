@@ -1,13 +1,14 @@
 import { open } from "sqlite";
 import sqlite3 from "sqlite3";
+import { DB_PATH } from "./config.js";
 
 const getConnection = async () => {
   const db = await open({
-    filename: "./data/db.sqlite",
+    filename: DB_PATH,
     driver: sqlite3.cached.Database,
   });
 
-  db.migrate({
+  await db.migrate({
     migrationsPath: "./data/migrations",
   });
 
