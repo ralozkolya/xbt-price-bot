@@ -6,21 +6,25 @@ import { getPair, isSupportedCurrency, lastPrice } from "./kraken.js";
 
 const { ChartJSNodeCanvas } = ChartJSNode;
 
+const chart = new ChartJSNodeCanvas({ width: 800, height: 300 });
+
+const dateFormatter = new Intl.DateTimeFormat("en-GB", {
+  month: "short",
+  day: "numeric",
+  hour: "numeric",
+  minute: "numeric",
+});
+
 export const getChart = async (currency) => {
   if (!isSupportedCurrency(currency)) {
     throw createError(400, "unsupported currency");
   }
 
   const pair = getPair(currency);
-  const price = await lastPrice(pair);
-  const priceData = await getPriceData(currency);
-
-  const dateFormatter = Intl.DateTimeFormat("en-GB", {
-    month: "short",
-    day: "numeric",
-    hour: "numeric",
-    minute: "numeric",
-  });
+  const [price, priceData] = await Promise.all([
+    lastPrice(pair),
+    getPriceData(currency),
+  ]);
 
   const parsedData = priceData.ohlc.map((item) => ({
     close: parseFloat(item.close),
@@ -32,12 +36,7 @@ export const getChart = async (currency) => {
     date: dateFormatter.format(Date.now()),
   });
 
-  const chart = new ChartJSNodeCanvas({
-    width: 800,
-    height: 300,
-  });
-
-  return chart.renderToBufferSync({
+  return chart.renderToBuffer({
     type: "line",
     data: {
       labels: parsedData.map((item) => item.date),
