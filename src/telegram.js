@@ -43,14 +43,18 @@ export const handle = (token, body, headerSecret) => {
     chat: { id },
   } = body.message;
 
+  if (typeof text !== "string") {
+    return;
+  }
+
   switch (true) {
-    case text?.startsWith("/start"):
+    case text.startsWith("/start"):
       return start(id);
-    case text?.startsWith("/help"):
+    case text.startsWith("/help"):
       return getHelp(id);
-    case text?.startsWith("/alert"):
+    case text.startsWith("/alert"):
       return alertFromCommand(id, text);
-    case text?.startsWith("/current"):
+    case text.startsWith("/current"):
       return current(id, text);
     default:
       return alertFromResponse(id, text);
