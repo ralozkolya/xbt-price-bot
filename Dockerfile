@@ -1,4 +1,4 @@
-FROM node:24.15.0-bookworm-slim AS builder
+FROM node:24.15.0-trixie-slim AS builder
 
 WORKDIR /app
 
@@ -15,12 +15,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 COPY ./package*.json ./
 
-# Compile sqlite3 from source so the .node binding links against the runtime's
-# GLIBC, not the prebuilt's (which targets a newer libc than bookworm has).
-RUN npm ci --omit=dev --build-from-source=sqlite3
+RUN npm ci --omit=dev
 
 
-FROM node:24.15.0-bookworm-slim AS runtime
+FROM node:24.15.0-trixie-slim AS runtime
 
 WORKDIR /app
 
