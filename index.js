@@ -1,11 +1,12 @@
 import Router from "@koa/router";
 import Koa from "koa";
 import { koaBody } from "koa-body";
-import { handle } from "./src/telegram.js";
+import { handle, COMMANDS } from "./src/telegram.js";
 import { init } from "./src/alerts.js";
 import { getChart } from "./src/chart.js";
 import { PORT, resolvedConfig } from "./src/config.js";
 import { logger } from "./src/logger.js";
+import { setMyCommands } from "./src/api.js";
 
 process.on("unhandledRejection", (reason) => {
   const msg = reason instanceof Error ? `${reason.message}\n${reason.stack}` : String(reason);
@@ -72,4 +73,7 @@ if (isEntryModule) {
   logger.info(`Startup config: ${JSON.stringify(resolvedConfig)}`);
   app.listen(PORT);
   init();
+  setMyCommands(COMMANDS).catch((e) => {
+    logger.error(`setMyCommands at startup failed: ${e.message}`);
+  });
 }

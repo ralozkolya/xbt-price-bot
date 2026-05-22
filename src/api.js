@@ -53,6 +53,20 @@ export const sendPhoto = async (
   }
 };
 
+export const setMyCommands = async (commands) => {
+  try {
+    const response = await axios.post(
+      `${TELEGRAM_URL}/setMyCommands`,
+      { commands },
+      { timeout: TIMEOUT_MS }
+    );
+    return response.data;
+  } catch (e) {
+    logAxiosFailure("Telegram setMyCommands", null, e);
+    throw e;
+  }
+};
+
 export const getPriceData = async (currency) => {
   try {
     const response = await axios.get(`${BITSTAMP_URL}/ohlc/btc${currency}`, {

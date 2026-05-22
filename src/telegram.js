@@ -7,6 +7,14 @@ import { TG_TOKEN, TG_WEBHOOK_SECRET } from "./config.js";
 import { alertFromCommand, alertFromResponse, listAlerts } from "./alerts.js";
 import { current } from "./current.js";
 
+export const COMMANDS = [
+  { command: "start", description: "Start the bot" },
+  { command: "help", description: "Show help" },
+  { command: "current", description: "Show current XBT price" },
+  { command: "alert", description: "Set a price alert" },
+  { command: "alerts", description: "List your active alerts" },
+];
+
 const constantTimeEquals = (a, b) => {
   if (typeof a !== "string" || typeof b !== "string") return false;
   const aBuf = Buffer.from(a);
