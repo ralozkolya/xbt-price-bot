@@ -15,7 +15,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 COPY ./package*.json ./
 
-RUN npm ci --omit=dev
+# Compile sqlite3 from source so the .node binding links against the runtime's
+# GLIBC, not the prebuilt's (which targets a newer libc than bookworm has).
+RUN npm ci --omit=dev --build-from-source=sqlite3
 
 
 FROM node:24.15.0-bookworm-slim AS runtime
