@@ -5,7 +5,7 @@
   "type": "module",
   "main": "index.js",
   "scripts": {
-    "test": "npm test"
+    "test": "node --test test/**/*.test.js"
   },
   "repository": {
     "type": "git",
@@ -39,5 +39,8 @@
     "sqlite3": "^6.0.1",
     "winston": "^3.19.0",
     "ws": "^8.20.1"
+  },
+  "devDependencies": {
+    "nock": "^14.0.0"
   }
 }
