@@ -74,6 +74,20 @@ const reconnect = (ws) => {
   reconnectTimer = setTimeout(connect, delay);
 };
 
+// Kraken WS v1 emits {"event":"heartbeat"} every second on a healthy subscription.
+// If nothing arrives for this long, the connection is silently dead — terminate to reconnect.
+const LIVENESS_TIMEOUT_MS = 10000;
+let livenessTimer;
+const armLiveness = (ws) => {
+  clearTimeout(livenessTimer);
+  livenessTimer = setTimeout(() => {
+    logger.warn(
+      `Kraken WS: no message in ${LIVENESS_TIMEOUT_MS / 1000}s, terminating`
+    );
+    ws.terminate();
+  }, LIVENESS_TIMEOUT_MS);
+};
+
 export const connect = () => {
   const ws = new WebSocket("wss://ws.kraken.com");
 
@@ -83,20 +97,20 @@ export const connect = () => {
     tries = 0;
     logger.info("Connected!");
     subscribe(ws, "trade");
-    // Reconnect every hour, Kraken seems to stop sending updates for long-running connections
-    setTimeout(() => {
-      logger.warn("Restarting to keep receiving updates...");
-      ws.close();
-    }, 3600000);
+    armLiveness(ws);
   });
 
-  ws.on("message", onMessage);
+  ws.on("message", (raw) => {
+    armLiveness(ws);
+    onMessage(raw);
+  });
 
   ws.on("error", (error) => {
     logger.error(error.message);
   });
 
   ws.on("close", () => {
+    clearTimeout(livenessTimer);
     logger.error("Channel closed");
     resetTrackers();
     reconnect(ws);
