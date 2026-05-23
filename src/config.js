@@ -12,8 +12,52 @@ export const isProd = () => "production" === NODE_ENV;
 export const DEBOUNCE_TIME = Number.parseInt(process.env.DEBOUNCE_TIME) || 2000;
 export const PORT = Number.parseInt(process.env.PORT) || 3000;
 export const DB_PATH = process.env.DB_PATH ?? "./data/db.sqlite";
-// Number of price samples held in the per-pair trailing window (NOT seconds).
-export const CHANGE_WINDOW = Number.parseInt(process.env.CHANGE_WINDOW) || 60;
+// Wall-clock lookback for the per-pair trailing average. Samples are folded
+// into fixed-width buckets of `CHANGE_BUCKET_MS`; the window holds
+// ceil(CHANGE_WINDOW_MS / CHANGE_BUCKET_MS) bucket slots. Defaults: 24h window,
+// 1h warm-up before any alert can fire, 1-minute buckets.
+const parsePositiveMs = (name, raw, defaultMs) => {
+  if (raw === undefined || raw === "") return defaultMs;
+  const n = Number.parseInt(raw, 10);
+  if (!Number.isFinite(n) || n <= 0) {
+    console.warn(
+      `[config] ${name}=${JSON.stringify(raw)} is not a positive integer; using default ${defaultMs}`
+    );
+    return defaultMs;
+  }
+  return n;
+};
+
+export const CHANGE_WINDOW_MS = parsePositiveMs(
+  "CHANGE_WINDOW_MS",
+  process.env.CHANGE_WINDOW_MS,
+  24 * 60 * 60 * 1000
+);
+export const CHANGE_FLOOR_MS = parsePositiveMs(
+  "CHANGE_FLOOR_MS",
+  process.env.CHANGE_FLOOR_MS,
+  60 * 60 * 1000
+);
+export const CHANGE_BUCKET_MS = parsePositiveMs(
+  "CHANGE_BUCKET_MS",
+  process.env.CHANGE_BUCKET_MS,
+  60 * 1000
+);
+
+if (process.env.CHANGE_WINDOW !== undefined) {
+  console.warn(
+    `[config] CHANGE_WINDOW is no longer used (got ${JSON.stringify(process.env.CHANGE_WINDOW)}). ` +
+      `Use CHANGE_WINDOW_MS (ms), CHANGE_FLOOR_MS (ms), CHANGE_BUCKET_MS (ms) instead.`
+  );
+}
+
+if (CHANGE_WINDOW_MS <= CHANGE_BUCKET_MS) {
+  console.warn(
+    `[config] CHANGE_WINDOW_MS=${CHANGE_WINDOW_MS} must exceed CHANGE_BUCKET_MS=${CHANGE_BUCKET_MS}; ` +
+      `with only one bucket slot the trailing average collapses to the current bucket's mean and ` +
+      `no alert will ever fire.`
+  );
+}
 
 const missing = [];
 if (!TG_TOKEN) missing.push("TG_TOKEN");
@@ -28,7 +72,9 @@ export const resolvedConfig = Object.freeze({
   WEBHOOK,
   DEBOUNCE_TIME,
   DB_PATH,
-  CHANGE_WINDOW,
+  CHANGE_WINDOW_MS,
+  CHANGE_FLOOR_MS,
+  CHANGE_BUCKET_MS,
   TG_TOKEN: TG_TOKEN ? `<set:${TG_TOKEN.slice(0, 3)}***>` : "<missing>",
   TG_WEBHOOK_SECRET: TG_WEBHOOK_SECRET ? "<set>" : "<missing>",
 });

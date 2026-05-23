@@ -5,7 +5,11 @@ import {
   getChangeAlertsByPair,
   insertChangeAlertIfUnderCap,
 } from "./db.js";
-import { CHANGE_WINDOW } from "./config.js";
+import {
+  CHANGE_BUCKET_MS,
+  CHANGE_FLOOR_MS,
+  CHANGE_WINDOW_MS,
+} from "./config.js";
 import {
   getCurrency,
   getPair,
@@ -42,6 +46,8 @@ export const overrideCooldownMs = (ms) => {
 export const MAX_CHANGE_ALERTS_PER_CHAT = 20;
 const PERCENT_RE = /^\d+(\.\d+)?%?$/;
 
+const N_BUCKETS = Math.max(1, Math.ceil(CHANGE_WINDOW_MS / CHANGE_BUCKET_MS));
+
 const ringBuffers = new Map();
 const lastFiredAt = new Map();
 
@@ -62,22 +68,81 @@ export const evictCooldown = (chatId, pair) => {
   lastFiredAt.delete(cooldownKey(chatId, pair));
 };
 
-const pushSample = (pair, price) => {
-  let buf = ringBuffers.get(pair);
-  if (!buf) {
-    buf = [];
-    ringBuffers.set(pair, buf);
+// Per-pair time-bucketed trailing buffer. Samples within the same
+// `CHANGE_BUCKET_MS` window are folded into a single slot (running sum +
+// count); the average across the window is `runningSum / runningCount`.
+// `headIdx` points at the most recent populated bucket; advancing the head
+// past a stale slot subtracts its contribution from the running totals.
+const newBucketState = () => ({
+  sums: new Float64Array(N_BUCKETS),
+  counts: new Uint32Array(N_BUCKETS),
+  headIdx: 0,
+  headBucketTs: null,
+  runningSum: 0,
+  runningCount: 0,
+  // Raw wall-clock ts of the first push in the current observation streak.
+  // A streak ends when the buffer fully empties (runningCount → 0) and a new
+  // sample arrives; the floor warm-up is measured from this anchor.
+  firstPushTs: 0,
+});
+
+const bucketStart = (now) =>
+  Math.floor(now / CHANGE_BUCKET_MS) * CHANGE_BUCKET_MS;
+
+// Returns true if the sample was accepted into the buffer, false if rejected
+// (non-finite/non-positive price, or a clock-regressed `now`). Callers must
+// not evaluate the alert against a rejected sample — `current` would not be
+// represented in the buffer state used to compute the average.
+const pushSample = (pair, price, now) => {
+  if (!Number.isFinite(price) || price <= 0) return false;
+
+  let s = ringBuffers.get(pair);
+  if (!s) {
+    s = newBucketState();
+    ringBuffers.set(pair, s);
   }
-  buf.push(price);
-  if (buf.length > CHANGE_WINDOW) {
-    buf.shift();
+
+  const bucketTs = bucketStart(now);
+
+  if (s.headBucketTs === null) {
+    s.headBucketTs = bucketTs;
+    s.firstPushTs = now;
+  } else if (bucketTs < s.headBucketTs) {
+    // Clock regression — drop to keep eviction bookkeeping monotonic.
+    return false;
+  } else if (bucketTs > s.headBucketTs) {
+    const step = (bucketTs - s.headBucketTs) / CHANGE_BUCKET_MS;
+    if (step >= N_BUCKETS) {
+      s.sums.fill(0);
+      s.counts.fill(0);
+      s.runningSum = 0;
+      s.runningCount = 0;
+      s.headIdx = 0;
+    } else {
+      for (let i = 0; i < step; i++) {
+        s.headIdx = (s.headIdx + 1) % N_BUCKETS;
+        s.runningSum -= s.sums[s.headIdx];
+        s.runningCount -= s.counts[s.headIdx];
+        s.sums[s.headIdx] = 0;
+        s.counts[s.headIdx] = 0;
+      }
+    }
+    s.headBucketTs = bucketTs;
+    if (s.runningCount === 0) s.firstPushTs = now;
   }
-  return buf;
+
+  s.sums[s.headIdx] += price;
+  s.counts[s.headIdx] += 1;
+  s.runningSum += price;
+  s.runningCount += 1;
+  return true;
 };
 
-const trailingAverage = (buf) => {
-  const sum = buf.reduce((acc, v) => acc + v, 0);
-  return sum / buf.length;
+const trailingAverage = (pair, now) => {
+  const s = ringBuffers.get(pair);
+  if (!s || s.runningCount === 0) return null;
+  if (now - s.firstPushTs < CHANGE_FLOOR_MS) return null;
+  return s.runningSum / s.runningCount;
 };
 
 export const setChangeAlert = async (chatId, percentRaw, currency = "usd") => {
@@ -196,18 +261,19 @@ const processChangeAlert = async (alert, current, average, now) => {
   }
 };
 
-export const priceChangeHandler = async (change) => {
-  const now = Date.now();
+export const priceChangeHandler = async (change, now = Date.now()) => {
   sweepCooldowns(now);
 
   await Promise.all(
     Object.keys(change).map(async (pair) => {
       const current = change[pair];
-      const buf = pushSample(pair, current);
-      if (buf.length < CHANGE_WINDOW) return;
+      // If the sample is rejected (non-finite price or clock-regressed now)
+      // we must NOT evaluate the alert — `current` is not in the buffer and
+      // firing on it would contradict the trailing average.
+      if (!pushSample(pair, current, now)) return;
 
-      const average = trailingAverage(buf);
-      if (!Number.isFinite(average) || average <= 0) return;
+      const average = trailingAverage(pair, now);
+      if (average === null) return;
 
       const alerts = await getChangeAlertsByPair(pair);
       await Promise.all(

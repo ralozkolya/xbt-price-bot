@@ -3,7 +3,6 @@ import { filter } from "rxjs";
 import {
   listChangeAlerts,
   priceChangeHandler as changePriceHandler,
-  resetChangeAlertState,
 } from "./change-alerts.js";
 import { deleteAlert, getAlerts, getAlertsByChatId, insertAlert } from "./db.js";
 import {
@@ -12,7 +11,6 @@ import {
   getPair,
   isSupportedCurrency,
   lastPrice,
-  onTrackerReset,
   priceTracker,
 } from "./kraken.js";
 import { logger } from "./logger.js";
@@ -209,7 +207,10 @@ export const deleteAlertFromCommand = async (chatId, text) => {
 };
 
 export const init = () => {
-  onTrackerReset(resetChangeAlertState);
+  // Note: change-alert state is intentionally NOT wired to onTrackerReset.
+  // The trailing-mean buffer is wall-clock-anchored — a transient Kraken
+  // reconnect doesn't invalidate previously observed prices, and stale data
+  // is evicted naturally by pushSample's time-based eviction.
   connect();
   priceTracker.pipe(filter((_) => _)).subscribe((change) => {
     Promise.resolve(priceChangeHandler(change)).catch((e) =>

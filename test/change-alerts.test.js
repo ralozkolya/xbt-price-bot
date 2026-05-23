@@ -7,11 +7,14 @@ process.env.TG_TOKEN ??= TG_TOKEN;
 process.env.WEBHOOK ??= "http://localhost:9999";
 process.env.DB_PATH ??= ":memory:";
 process.env.NODE_ENV ??= "test";
-// Drive the firing/cooldown tests with a small N so simulating "trailing
-// window has N samples" is cheap. The change-alerts module reads CHANGE_WINDOW
-// from config at import time, so this env override has to be in place BEFORE
-// the dynamic import in `before(...)` below.
-process.env.CHANGE_WINDOW ??= "5";
+// Shrink the time-bucketed buffer for tests: 100 ms buckets, 1 s window
+// (10 slots), 400 ms warm-up floor. Each simulated tick advances the
+// injected clock by 100 ms so consecutive samples land in distinct buckets.
+// The change-alerts module reads these from config at import time, so the
+// overrides must be in place BEFORE the dynamic import in `before(...)`.
+process.env.CHANGE_WINDOW_MS ??= "1000";
+process.env.CHANGE_FLOOR_MS ??= "400";
+process.env.CHANGE_BUCKET_MS ??= "100";
 
 let nock;
 let listAlerts;
@@ -463,8 +466,26 @@ test("listAlerts: empty case (no price + no change alerts) still hits alertsEmpt
 
 // ---------- Firing (priceChangeHandler) ----------
 
-const CHANGE_WINDOW = 5; // mirrors process.env.CHANGE_WINDOW above
+// Number of ticks needed to clear the warm-up floor (400 ms / 100 ms bucket).
+// The 5th tick puts the clock at exactly 400 ms elapsed since the first push,
+// which is the boundary where trailingAverage stops returning null.
+const CHANGE_WINDOW = 5;
+const TICK_MS = 100;
 const PAIR = "XBT/USD";
+
+// Injected monotonically-advancing clock for priceChangeHandler. Each `tick`
+// call moves it forward by TICK_MS so samples land in distinct buckets.
+let testClock = 0;
+const tick = (change, stepMs = TICK_MS) => {
+  testClock += stepMs;
+  return priceChangeHandler(change, testClock);
+};
+const resetFiringState = () => {
+  // Dispatch through the dynamic-import binding (assigned in `before`),
+  // not a static alias — at module-eval time the import hasn't run yet.
+  (0, resetChangeAlertState)();
+  testClock = 0;
+};
 
 // Race a captured-body promise against a short timer. Resolves to either the
 // captured body (fired) or the string "timeout" (no fire).
@@ -473,7 +494,7 @@ const settleOrTimeout = (seen, ms) =>
 
 test("firing: does NOT fire before the trailing window has N samples", async () => {
   await wipeAllChangeAlerts();
-  resetChangeAlertState();
+  resetFiringState();
   const chat = "ca-fire-prewindow";
   await insertChangeAlert({ chatId: chat, pair: PAIR, threshold: 1 });
 
@@ -484,7 +505,7 @@ test("firing: does NOT fire before the trailing window has N samples", async () 
 
   // Push only N-1 samples, the last one wildly off any reasonable average.
   for (let i = 0; i < CHANGE_WINDOW - 1; i++) {
-    await priceChangeHandler({ [PAIR]: i === CHANGE_WINDOW - 2 ? 1_000_000 : 50_000 });
+    await tick({ [PAIR]: i === CHANGE_WINDOW - 2 ? 1_000_000 : 50_000 });
   }
 
   const outcome = await settleOrTimeout(seen, 80);
@@ -500,7 +521,7 @@ test("firing: does NOT fire before the trailing window has N samples", async () 
 
 test("firing: fires when |current - avg|/avg crosses threshold upward", async () => {
   await wipeAllChangeAlerts();
-  resetChangeAlertState();
+  resetFiringState();
   overrideCooldownMs(60_000); // long cooldown — we only fire once here
   const chat = "ca-fire-up";
   await insertChangeAlert({ chatId: chat, pair: PAIR, threshold: 2 });
@@ -508,9 +529,9 @@ test("firing: fires when |current - avg|/avg crosses threshold upward", async ()
   // Warmup 4 samples at 50,000 → average 50,000. 5th at 52,000 → delta +4%.
   const { scope, seen } = captureSendMessage();
   for (let i = 0; i < CHANGE_WINDOW - 1; i++) {
-    await priceChangeHandler({ [PAIR]: 50_000 });
+    await tick({ [PAIR]: 50_000 });
   }
-  await priceChangeHandler({ [PAIR]: 52_000 });
+  await tick({ [PAIR]: 52_000 });
   const body = await seen;
   assert.ok(scope.isDone(), "firing did not invoke sendMessage");
   assert.equal(body.chat_id, chat);
@@ -519,16 +540,16 @@ test("firing: fires when |current - avg|/avg crosses threshold upward", async ()
 
 test("firing: fires when |current - avg|/avg crosses threshold downward", async () => {
   await wipeAllChangeAlerts();
-  resetChangeAlertState();
+  resetFiringState();
   overrideCooldownMs(60_000);
   const chat = "ca-fire-down";
   await insertChangeAlert({ chatId: chat, pair: PAIR, threshold: 2 });
 
   const { scope, seen } = captureSendMessage();
   for (let i = 0; i < CHANGE_WINDOW - 1; i++) {
-    await priceChangeHandler({ [PAIR]: 50_000 });
+    await tick({ [PAIR]: 50_000 });
   }
-  await priceChangeHandler({ [PAIR]: 48_000 }); // -4% vs avg → fires
+  await tick({ [PAIR]: 48_000 }); // -4% vs avg → fires
   const body = await seen;
   assert.ok(scope.isDone());
   assert.equal(body.chat_id, chat);
@@ -537,18 +558,18 @@ test("firing: fires when |current - avg|/avg crosses threshold downward", async 
 
 test("firing: triggered message carries DELTA, AVERAGE, CURRENT, THRESHOLD substitutions", async () => {
   await wipeAllChangeAlerts();
-  resetChangeAlertState();
+  resetFiringState();
   overrideCooldownMs(60_000);
   const chat = "ca-fire-subs";
   await insertChangeAlert({ chatId: chat, pair: PAIR, threshold: 2 });
 
   const { scope, seen } = captureSendMessage();
   for (let i = 0; i < CHANGE_WINDOW - 1; i++) {
-    await priceChangeHandler({ [PAIR]: 50_000 });
+    await tick({ [PAIR]: 50_000 });
   }
   // avg of 5 samples will be (50_000*4 + 52_500)/5 = 50_500. Current = 52_500.
   // delta = (52500-50500)/50500 *100 ≈ 3.96% → fires (threshold 2%).
-  await priceChangeHandler({ [PAIR]: 52_500 });
+  await tick({ [PAIR]: 52_500 });
   const body = await seen;
   assert.ok(scope.isDone());
 
@@ -569,16 +590,16 @@ test("firing: triggered message carries DELTA, AVERAGE, CURRENT, THRESHOLD subst
 
 test("cooldown: second crossing within COOLDOWN_MS does NOT re-fire", async () => {
   await wipeAllChangeAlerts();
-  resetChangeAlertState();
+  resetFiringState();
   overrideCooldownMs(60_000); // wide cooldown, no rearm during test
   const chat = "ca-cool-1";
   await insertChangeAlert({ chatId: chat, pair: PAIR, threshold: 2 });
 
   const { scope: scope1, seen: seen1 } = captureSendMessage();
   for (let i = 0; i < CHANGE_WINDOW - 1; i++) {
-    await priceChangeHandler({ [PAIR]: 50_000 });
+    await tick({ [PAIR]: 50_000 });
   }
-  await priceChangeHandler({ [PAIR]: 52_000 }); // fires once
+  await tick({ [PAIR]: 52_000 }); // fires once
   await seen1;
   assert.ok(scope1.isDone(), "first crossing must fire");
 
@@ -592,7 +613,7 @@ test("cooldown: second crossing within COOLDOWN_MS does NOT re-fire", async () =
     .times(1) // would be consumed by a second fire (which we don't want)
     .reply(200, { ok: true, result: {} });
 
-  await priceChangeHandler({ [PAIR]: 53_000 }); // bigger swing, but cooldown
+  await tick({ [PAIR]: 53_000 }); // bigger swing, but cooldown
   // Give the async pipeline a tick.
   await new Promise((r) => setImmediate(r));
 
@@ -602,7 +623,7 @@ test("cooldown: second crossing within COOLDOWN_MS does NOT re-fire", async () =
 
 test("cooldown: crossing after COOLDOWN_MS elapses fires again (auto-rearm)", async () => {
   await wipeAllChangeAlerts();
-  resetChangeAlertState();
+  resetFiringState();
   overrideCooldownMs(50); // short cooldown for the rearm window
   const chat = "ca-cool-rearm";
   await insertChangeAlert({ chatId: chat, pair: PAIR, threshold: 2 });
@@ -610,27 +631,27 @@ test("cooldown: crossing after COOLDOWN_MS elapses fires again (auto-rearm)", as
   // First fire.
   const { scope: scope1, seen: seen1 } = captureSendMessage();
   for (let i = 0; i < CHANGE_WINDOW - 1; i++) {
-    await priceChangeHandler({ [PAIR]: 50_000 });
+    await tick({ [PAIR]: 50_000 });
   }
-  await priceChangeHandler({ [PAIR]: 52_000 });
+  await tick({ [PAIR]: 52_000 });
   await seen1;
   assert.ok(scope1.isDone(), "first fire missed");
 
-  // Wait past cooldown.
-  await new Promise((r) => setTimeout(r, 120));
+  // Wait past cooldown (injected clock, no real sleep needed).
+  testClock += 120;
 
   // Second fire — needs another big enough delta vs trailing avg. The buffer
   // currently holds [50k, 50k, 50k, 50k, 52k] → avg 50.4k. A 53k tick is
   // +5.16% — well past the 2% threshold.
   const { scope: scope2, seen: seen2 } = captureSendMessage();
-  await priceChangeHandler({ [PAIR]: 53_000 });
+  await tick({ [PAIR]: 53_000 });
   await seen2;
   assert.ok(scope2.isDone(), "second fire (post-cooldown) missed");
 });
 
 test("cooldown: keyed per (chatId, pair) — different pair fires independently", async () => {
   await wipeAllChangeAlerts();
-  resetChangeAlertState();
+  resetFiringState();
   overrideCooldownMs(60_000);
   const chat = "ca-cool-perpair";
   await insertChangeAlert({ chatId: chat, pair: "XBT/USD", threshold: 2 });
@@ -640,9 +661,9 @@ test("cooldown: keyed per (chatId, pair) — different pair fires independently"
   // tick. Each pair has its OWN ring buffer + cooldown key → both fire.
   const expected = captureSendMessages(2);
   for (let i = 0; i < CHANGE_WINDOW - 1; i++) {
-    await priceChangeHandler({ "XBT/USD": 50_000, "XBT/EUR": 40_000 });
+    await tick({ "XBT/USD": 50_000, "XBT/EUR": 40_000 });
   }
-  await priceChangeHandler({ "XBT/USD": 52_000, "XBT/EUR": 41_600 });
+  await tick({ "XBT/USD": 52_000, "XBT/EUR": 41_600 });
 
   const bodies = await expected.seen;
   assert.ok(expected.scope.isDone(), "expected exactly 2 sendMessages, one per pair");
@@ -652,7 +673,7 @@ test("cooldown: keyed per (chatId, pair) — different pair fires independently"
 
 test("cooldown: removeChangeAlert (delete + evict) lets a recreated alert fire immediately", async () => {
   await wipeAllChangeAlerts();
-  resetChangeAlertState();
+  resetFiringState();
   overrideCooldownMs(60_000);
   const chat = "ca-cool-evict";
 
@@ -664,9 +685,9 @@ test("cooldown: removeChangeAlert (delete + evict) lets a recreated alert fire i
   });
   const { scope: scope1, seen: seen1 } = captureSendMessage();
   for (let i = 0; i < CHANGE_WINDOW - 1; i++) {
-    await priceChangeHandler({ [PAIR]: 50_000 });
+    await tick({ [PAIR]: 50_000 });
   }
-  await priceChangeHandler({ [PAIR]: 52_000 });
+  await tick({ [PAIR]: 52_000 });
   await seen1;
   assert.ok(scope1.isDone());
 
@@ -678,7 +699,7 @@ test("cooldown: removeChangeAlert (delete + evict) lets a recreated alert fire i
 
   const { scope: scope2, seen: seen2 } = captureSendMessage();
   // Buffer is currently [50k×4, 52k] → avg 50.4k. A 53k tick is +5.16%.
-  await priceChangeHandler({ [PAIR]: 53_000 });
+  await tick({ [PAIR]: 53_000 });
   await seen2;
   assert.ok(scope2.isDone(), "recreated alert did not fire — stale cooldown leaked");
 });
@@ -689,6 +710,114 @@ test("cooldown: evictCooldown(chatId, pair) is exported and removes the entry", 
   assert.equal(typeof evictCooldown, "function");
   // Sanity: calling it on a non-existent key must not throw.
   evictCooldown("nobody", "XBT/USD");
+});
+
+// ---------- Sample-rejection invariants ----------
+
+test("rejection: NaN price is dropped and does not poison the trailing sum", async () => {
+  // Regression guard for the latch where one NaN tick propagated through
+  // runningSum and stayed there forever (NaN minus NaN is NaN).
+  await wipeAllChangeAlerts();
+  resetFiringState();
+  overrideCooldownMs(60_000);
+  const chat = "ca-rej-nan";
+  await insertChangeAlert({ chatId: chat, pair: PAIR, threshold: 1 });
+
+  for (let i = 0; i < CHANGE_WINDOW - 1; i++) {
+    await tick({ [PAIR]: 50_000 });
+  }
+  // A poisoned tick — must be rejected, must not advance any running totals.
+  await tick({ [PAIR]: Number.NaN });
+  // The very next legitimate tick must still be able to fire on the warm
+  // buffer (avg ≈ 50k, current = 53k → 6% > 1% threshold).
+  const { scope, seen } = captureSendMessage();
+  await tick({ [PAIR]: 53_000 });
+  await seen;
+  assert.ok(scope.isDone(), "NaN poisoned runningSum — alert never fired");
+});
+
+test("rejection: clock-regressed sample is dropped without evaluating the alert", async () => {
+  // Even when the regressed `current` would represent a huge delta vs the
+  // trailing average, pushSample rejecting the sample must short-circuit
+  // alert evaluation — firing on an unrecorded sample contradicts the
+  // buffer state the average was computed from.
+  await wipeAllChangeAlerts();
+  resetFiringState();
+  overrideCooldownMs(60_000);
+  const chat = "ca-rej-regress";
+  await insertChangeAlert({ chatId: chat, pair: PAIR, threshold: 1 });
+
+  for (let i = 0; i < CHANGE_WINDOW; i++) {
+    await tick({ [PAIR]: 50_000 });
+  }
+  // Above call already fired on the 5th tick — evict the cooldown so the
+  // test focuses on the regression-vs-fire interaction, not on cooldown.
+  evictCooldown(chat, PAIR);
+
+  // Inject a sample at an earlier `now` than the current head bucket — at
+  // 1_000_000 the delta vs 50k avg would be +1900% if it were ever applied.
+  const { scope, seen } = captureSendMessage();
+  await priceChangeHandler({ [PAIR]: 1_000_000 }, testClock - 500);
+  const outcome = await settleOrTimeout(seen, 80);
+  assert.equal(
+    outcome,
+    "__timeout__",
+    `regressed sample must not fire, got: ${JSON.stringify(outcome)}`
+  );
+  assert.ok(!scope.isDone(), "interceptor should still be pending (no fire)");
+  nock.cleanAll();
+});
+
+test("warm-up: high-density pushes within FLOOR_MS still suppress alerts", async () => {
+  // The new gate is time-based, not count-based. 50 ticks all at the same
+  // injected `now` collapse to a single bucket — elapsed-since-first-push
+  // is 0, well under the 400ms floor — no alert may fire.
+  await wipeAllChangeAlerts();
+  resetFiringState();
+  const chat = "ca-warm-dense";
+  await insertChangeAlert({ chatId: chat, pair: PAIR, threshold: 1 });
+
+  const { scope, seen } = captureSendMessage();
+  for (let i = 0; i < 50; i++) {
+    // Last sample is a wild spike; the time-based floor must still suppress.
+    await priceChangeHandler({ [PAIR]: i === 49 ? 1_000_000 : 50_000 }, 50);
+  }
+  const outcome = await settleOrTimeout(seen, 80);
+  assert.equal(
+    outcome,
+    "__timeout__",
+    `dense pushes within FLOOR_MS must not fire, got: ${JSON.stringify(outcome)}`
+  );
+  assert.ok(!scope.isDone());
+  nock.cleanAll();
+});
+
+test("warm-up: floor anchors on raw `now`, not the floored bucket start", async () => {
+  // First push lands at now=199 (mid-bucket); under the old bucket-aligned
+  // anchor, the 400ms floor would lift at now=500 (real elapsed only 301ms).
+  // Under the raw-`now` anchor, the floor lifts only at now=599.
+  await wipeAllChangeAlerts();
+  resetFiringState();
+  const chat = "ca-warm-anchor";
+  await insertChangeAlert({ chatId: chat, pair: PAIR, threshold: 1 });
+
+  await priceChangeHandler({ [PAIR]: 50_000 }, 199);
+  // now=599 → elapsed=400, exactly at the floor boundary.
+  const { scope, seen } = captureSendMessage();
+  await priceChangeHandler({ [PAIR]: 60_000 }, 599);
+  await seen;
+  assert.ok(scope.isDone(), "floor should lift at exactly elapsed=400");
+
+  // Reset state and repeat one tick earlier — must NOT fire.
+  await wipeAllChangeAlerts();
+  resetFiringState();
+  await insertChangeAlert({ chatId: chat, pair: PAIR, threshold: 1 });
+  await priceChangeHandler({ [PAIR]: 50_000 }, 199);
+  const noFire = captureSendMessage();
+  await priceChangeHandler({ [PAIR]: 60_000 }, 598); // elapsed=399
+  const outcome = await settleOrTimeout(noFire.seen, 80);
+  assert.equal(outcome, "__timeout__", "floor must NOT lift at elapsed=399");
+  nock.cleanAll();
 });
 
 // ---------- MarkdownV2 safety ----------
@@ -713,16 +842,16 @@ test("MarkdownV2: changeAlertSet body has every special escaped (unescapedSpecia
 
 test("MarkdownV2: changeAlertTriggered body has every special escaped (unescapedSpecials walk)", async () => {
   await wipeAllChangeAlerts();
-  resetChangeAlertState();
+  resetFiringState();
   overrideCooldownMs(60_000);
   const chat = "ca-mdv2-fire";
   await insertChangeAlert({ chatId: chat, pair: PAIR, threshold: 1 });
 
   const { scope, seen } = captureSendMessage();
   for (let i = 0; i < CHANGE_WINDOW - 1; i++) {
-    await priceChangeHandler({ [PAIR]: 50_000 });
+    await tick({ [PAIR]: 50_000 });
   }
-  await priceChangeHandler({ [PAIR]: 52_000 }); // fires
+  await tick({ [PAIR]: 52_000 }); // fires
   const body = await seen;
   assert.ok(scope.isDone());
 
@@ -855,7 +984,7 @@ test("webhook routing: /changealertfoo (no boundary) is NOT routed to changeAler
 
 test("deleteChangeAlert: own-chat delete removes the row, evicts cooldown, success message", async () => {
   await wipeAllChangeAlerts();
-  resetChangeAlertState();
+  resetFiringState();
   overrideCooldownMs(60_000);
   const chat = "ca-del-own";
   const { lastID } = await insertChangeAlert({
@@ -866,9 +995,9 @@ test("deleteChangeAlert: own-chat delete removes the row, evicts cooldown, succe
   // Seat a cooldown by firing once.
   const { scope: s1, seen: seen1 } = captureSendMessage();
   for (let i = 0; i < CHANGE_WINDOW - 1; i++) {
-    await priceChangeHandler({ [PAIR]: 50_000 });
+    await tick({ [PAIR]: 50_000 });
   }
-  await priceChangeHandler({ [PAIR]: 52_000 });
+  await tick({ [PAIR]: 52_000 });
   await seen1;
   assert.ok(s1.isDone());
 
@@ -886,14 +1015,14 @@ test("deleteChangeAlert: own-chat delete removes the row, evicts cooldown, succe
   // Cooldown evicted: recreate + cross again → fires immediately.
   await insertChangeAlert({ chatId: chat, pair: PAIR, threshold: 2 });
   const { scope: s2, seen: seen2 } = captureSendMessage();
-  await priceChangeHandler({ [PAIR]: 53_000 });
+  await tick({ [PAIR]: 53_000 });
   await seen2;
   assert.ok(s2.isDone(), "recreated alert did not fire — cooldown was not evicted");
 });
 
 test("deleteChangeAlert: cross-tenant delete returns not-found, row untouched, cooldown untouched", async () => {
   await wipeAllChangeAlerts();
-  resetChangeAlertState();
+  resetFiringState();
   overrideCooldownMs(60_000);
   const chatA = "ca-del-A";
   const chatB = "ca-del-B";
@@ -905,9 +1034,9 @@ test("deleteChangeAlert: cross-tenant delete returns not-found, row untouched, c
   // Fire chatA's alert to seat a cooldown for (chatA, pair).
   const { scope: s1, seen: seen1 } = captureSendMessage();
   for (let i = 0; i < CHANGE_WINDOW - 1; i++) {
-    await priceChangeHandler({ [PAIR]: 50_000 });
+    await tick({ [PAIR]: 50_000 });
   }
-  await priceChangeHandler({ [PAIR]: 52_000 });
+  await tick({ [PAIR]: 52_000 });
   await seen1;
   assert.ok(s1.isDone());
 
@@ -928,7 +1057,7 @@ test("deleteChangeAlert: cross-tenant delete returns not-found, row untouched, c
 
 test("deleteChangeAlert: nonexistent id returns not-found and does not throw", async () => {
   await wipeAllChangeAlerts();
-  resetChangeAlertState();
+  resetFiringState();
   const chat = "ca-del-nonexistent";
   const { scope, seen } = captureSendMessage();
   await deleteChangeAlertFromCommand(chat, "/deletechange 9999999");
@@ -939,7 +1068,7 @@ test("deleteChangeAlert: nonexistent id returns not-found and does not throw", a
 
 test("deleteChangeAlert: idempotent — second call returns not-found", async () => {
   await wipeAllChangeAlerts();
-  resetChangeAlertState();
+  resetFiringState();
   const chat = "ca-del-idemp";
   const { lastID } = await insertChangeAlert({
     chatId: chat,
@@ -991,7 +1120,7 @@ test("deleteChangeAlert: dispatch regex matches expected forms only", () => {
 
 test("deleteChangeAlert webhook: /deletechange <id> is routed and deletes the row", async () => {
   await wipeAllChangeAlerts();
-  resetChangeAlertState();
+  resetFiringState();
   const chat = "ca-del-webhook";
   const { lastID } = await insertChangeAlert({
     chatId: chat,
@@ -1011,7 +1140,7 @@ test("deleteChangeAlert webhook: /deletechange <id> is routed and deletes the ro
 
 test("deleteChangeAlert: MarkdownV2 safety — success body has every special escaped", async () => {
   await wipeAllChangeAlerts();
-  resetChangeAlertState();
+  resetFiringState();
   const chat = "ca-del-mdv2";
   const { lastID } = await insertChangeAlert({
     chatId: chat,
