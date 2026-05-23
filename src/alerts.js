@@ -18,15 +18,26 @@ import {
 import { logger } from "./logger.js";
 import {
   alertAcknowledgment,
+  alertDeleted,
+  alertNotFound,
   alertSet,
   alertsEmpty,
   alertsList,
   alertTriggered,
+  deleteAlertUsage,
   errorOccured,
   numberFormatter,
   unsupportedCurrency,
   unsupportedTarget,
 } from "./messages.js";
+
+const POSITIVE_INT_RE = /^[1-9]\d*$/;
+const parsePositiveIntStrict = (raw) => {
+  const trimmed = typeof raw === "string" ? raw.trim() : "";
+  if (!POSITIVE_INT_RE.test(trimmed)) return null;
+  const n = Number.parseInt(trimmed, 10);
+  return Number.isInteger(n) && n > 0 && String(n) === trimmed ? n : null;
+};
 
 const processAlert = async (alert, price) => {
   const crossed =
@@ -34,7 +45,7 @@ const processAlert = async (alert, price) => {
     (alert.target >= price && "lower" === alert.alertOn);
   if (!crossed) return;
 
-  const result = await deleteAlert(alert.id);
+  const result = await deleteAlert(alert.id, alert.chatId);
   if (result?.changes !== 1) {
     return;
   }
@@ -176,6 +187,25 @@ export const alertFromCommand = (chatId, text) => {
   }
 
   return alertFromResponse(chatId, targetRaw);
+};
+
+export const deleteAlertFromCommand = async (chatId, text) => {
+  const raw = text.replace(/^\s*\/deletealert(@\w+)?\s*/i, "");
+  const id = parsePositiveIntStrict(raw);
+  if (id === null) {
+    return deleteAlertUsage(chatId);
+  }
+  try {
+    const result = await deleteAlert(id, chatId);
+    if (result?.changes !== 1) {
+      return alertNotFound(chatId);
+    }
+    logger.info(`Alert ${id} deleted by chat ${chatId}`);
+    return alertDeleted(chatId, { ID: id });
+  } catch (e) {
+    logger.error(`deleteAlertFromCommand failed for chat ${chatId}: ${e.message}`);
+    return errorOccured(chatId);
+  }
 };
 
 export const init = () => {

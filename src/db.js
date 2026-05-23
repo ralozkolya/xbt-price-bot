@@ -35,8 +35,8 @@ export const insertAlert = ({ chatId, target, pair, alertOn }) => {
   );
 };
 
-export const deleteAlert = (id) => {
-  return db.run("delete from alerts where id = ?", [id]);
+export const deleteAlert = (id, chatId) => {
+  return db.run("delete from alerts where id = ? and chatId = ?", [id, chatId]);
 };
 
 export const getChangeAlertsByPair = (pair) => {
@@ -75,6 +75,17 @@ export const getChangeAlertCount = async (chatId) => {
   return row?.count ?? 0;
 };
 
-export const deleteChangeAlert = (id) => {
-  return db.run("delete from changeAlerts where id = ?", [id]);
+export const deleteChangeAlert = (id, chatId) => {
+  return db.run("delete from changeAlerts where id = ? and chatId = ?", [
+    id,
+    chatId,
+  ]);
+};
+
+export const deleteChangeAlertReturningPair = async (id, chatId) => {
+  const rows = await db.all(
+    "delete from changeAlerts where id = ? and chatId = ? returning pair",
+    [id, chatId]
+  );
+  return rows[0] ?? null;
 };

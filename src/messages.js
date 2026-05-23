@@ -94,6 +94,22 @@ export const tooManyChangeAlerts = async (chatId) => {
   return sendMessage(chatId, await fileContent("too-many-change-alerts"));
 };
 
+export const alertDeleted = async (chatId, replace = null) => {
+  return sendMessage(chatId, await fileContent("alert-deleted", replace));
+};
+
+export const alertNotFound = async (chatId) => {
+  return sendMessage(chatId, await fileContent("alert-not-found"));
+};
+
+export const deleteAlertUsage = async (chatId) => {
+  return sendMessage(chatId, await fileContent("deletealert-usage"));
+};
+
+export const deleteChangeAlertUsage = async (chatId) => {
+  return sendMessage(chatId, await fileContent("deletechange-usage"));
+};
+
 export const getCurrent = async (chatId, url, replace = null) => {
   return sendPhoto(chatId, url, await fileContent("current-price", replace));
 };

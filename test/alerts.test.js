@@ -10,8 +10,10 @@ process.env.NODE_ENV ??= "test";
 
 let nock;
 let listAlerts;
+let deleteAlertFromCommand;
 let insertAlert;
 let getAlertsByChatId;
+let deleteAlert;
 let app;
 let server;
 let baseUrl;
@@ -21,8 +23,10 @@ before(async () => {
   nock.disableNetConnect();
   nock.enableNetConnect("127.0.0.1");
 
-  ({ listAlerts } = await import("../src/alerts.js"));
-  ({ insertAlert, getAlertsByChatId } = await import("../src/db.js"));
+  ({ listAlerts, deleteAlertFromCommand } = await import("../src/alerts.js"));
+  ({ insertAlert, getAlertsByChatId, deleteAlert } = await import(
+    "../src/db.js"
+  ));
   ({ app } = await import("../index.js"));
 
   await new Promise((resolve) => {
@@ -409,5 +413,190 @@ test("webhook routing: /alertsfoo (extra chars, no space) is NOT routed to listA
   assert.ok(
     !/no active alerts/i.test(body.text) && !/Your active alerts/i.test(body.text),
     `/alertsfoo was incorrectly routed to listAlerts: ${body.text}`
+  );
+});
+
+// ---------- /deletealert -------------------------------------------------
+
+test("deleteAlert: own-chat delete removes the row and sends success", async () => {
+  const chat = "del-own-1";
+  const { lastID } = await insertAlert({
+    chatId: chat,
+    target: 40000,
+    pair: "XBT/USD",
+    alertOn: "higher",
+  });
+  const { scope, seen } = captureSendMessage();
+
+  await deleteAlertFromCommand(chat, `/deletealert ${lastID}`);
+  const body = await seen;
+
+  assert.ok(scope.isDone());
+  assert.ok(/deleted/i.test(body.text), `expected deleted copy, got: ${body.text}`);
+  assert.ok(
+    body.text.includes(String(lastID)),
+    `success message should include id: ${body.text}`
+  );
+  const rows = await getAlertsByChatId(chat);
+  assert.ok(
+    !rows.some((r) => r.id === lastID),
+    "row should be gone after delete"
+  );
+});
+
+test("deleteAlert: cross-tenant delete returns not-found and does NOT touch the row", async () => {
+  const chatA = "del-A-tenant";
+  const chatB = "del-B-tenant";
+  const { lastID } = await insertAlert({
+    chatId: chatA,
+    target: 42000,
+    pair: "XBT/USD",
+    alertOn: "higher",
+  });
+  const { scope, seen } = captureSendMessage();
+
+  await deleteAlertFromCommand(chatB, `/deletealert ${lastID}`);
+  const body = await seen;
+
+  assert.ok(scope.isDone());
+  assert.ok(/no alert with that id/i.test(body.text), `expected not-found copy, got: ${body.text}`);
+  // The unified copy must NOT echo the id back (no oracle).
+  assert.ok(
+    !body.text.includes(String(lastID)),
+    `not-found message must not echo the id: ${body.text}`
+  );
+  const rowsA = await getAlertsByChatId(chatA);
+  assert.ok(rowsA.some((r) => r.id === lastID), "chatA's row must still exist");
+});
+
+test("deleteAlert: nonexistent id returns not-found and does not throw", async () => {
+  const chat = "del-nonexistent";
+  const { scope, seen } = captureSendMessage();
+  await deleteAlertFromCommand(chat, "/deletealert 9999999");
+  const body = await seen;
+  assert.ok(scope.isDone());
+  assert.ok(/no alert with that id/i.test(body.text));
+});
+
+test("deleteAlert: idempotent repeat-delete — second call returns not-found", async () => {
+  const chat = "del-idemp";
+  const { lastID } = await insertAlert({
+    chatId: chat,
+    target: 33000,
+    pair: "XBT/USD",
+    alertOn: "higher",
+  });
+  const { scope: s1, seen: seen1 } = captureSendMessage();
+  await deleteAlertFromCommand(chat, `/deletealert ${lastID}`);
+  await seen1;
+  assert.ok(s1.isDone());
+
+  const { scope: s2, seen: seen2 } = captureSendMessage();
+  await deleteAlertFromCommand(chat, `/deletealert ${lastID}`);
+  const body2 = await seen2;
+  assert.ok(s2.isDone());
+  assert.ok(/no alert with that id/i.test(body2.text));
+});
+
+test("deleteAlert: malformed input variants all return the usage template", async () => {
+  const chat = "del-malformed";
+  const cases = ["/deletealert", "/deletealert ", "/deletealert #12", "/deletealert Δ5", "/deletealert 12abc", "/deletealert 1e5", "/deletealert -3", "/deletealert 0", "/deletealert 01", "/deletealert  "];
+  for (const text of cases) {
+    const { scope, seen } = captureSendMessage();
+    await deleteAlertFromCommand(chat, text);
+    const body = await seen;
+    assert.ok(scope.isDone(), `no sendMessage fired for "${text}"`);
+    assert.ok(
+      /usage/i.test(body.text),
+      `input "${text}" did not produce usage template, got: ${body.text}`
+    );
+  }
+});
+
+test("deleteAlert: concurrent fire + user delete — exactly one changes:1, no throw", async () => {
+  // Simulate the race: both processAlert (via deleteAlert) and a user delete
+  // hit the same row. Both calls go through the scoped DELETE; SQLite serializes
+  // writes, so exactly one returns changes:1.
+  const chat = "del-race";
+  const { lastID } = await insertAlert({
+    chatId: chat,
+    target: 50000,
+    pair: "XBT/USD",
+    alertOn: "higher",
+  });
+
+  const [r1, r2] = await Promise.all([
+    deleteAlert(lastID, chat),
+    deleteAlert(lastID, chat),
+  ]);
+  const wins = [r1, r2].filter((r) => r?.changes === 1).length;
+  assert.equal(wins, 1, "exactly one concurrent delete must succeed");
+});
+
+test("deleteAlert: dispatch regex matches expected forms only", () => {
+  const re = /^\/deletealert(@\w+)?(\s|$)/i;
+  assert.ok(re.test("/deletealert"));
+  assert.ok(re.test("/deletealert "));
+  assert.ok(re.test("/deletealert 5"));
+  assert.ok(re.test("/Deletealert 5"));
+  assert.ok(re.test("/deletealert@SomeBot"));
+  assert.ok(re.test("/deletealert@SomeBot 5"));
+  assert.ok(!re.test("/deletealerts"));
+  assert.ok(!re.test("/deletealertfoo"));
+  assert.ok(!re.test("/deletealert5"));
+  assert.ok(!re.test(" /deletealert"));
+  assert.ok(!re.test("deletealert"));
+});
+
+test("deleteAlert webhook: /deletealert <id> is routed and deletes the row", async () => {
+  const chat = "del-webhook-1";
+  const { lastID } = await insertAlert({
+    chatId: chat,
+    target: 60000,
+    pair: "XBT/USD",
+    alertOn: "higher",
+  });
+  const { scope, seen } = captureSendMessage();
+  const res = await postJson(`/${TG_TOKEN}`, {
+    update_id: 2001,
+    message: { message_id: 1, chat: { id: chat }, text: `/deletealert ${lastID}` },
+  });
+  assert.ok(res.status >= 200 && res.status < 300);
+  const body = await seen;
+  assert.ok(scope.isDone());
+  assert.ok(/deleted/i.test(body.text));
+  const rows = await getAlertsByChatId(chat);
+  assert.ok(!rows.some((r) => r.id === lastID));
+});
+
+test("deleteAlert webhook: /deletealert is NOT swallowed by /alert prefix", async () => {
+  const { scope, seen } = captureSendMessage();
+  const res = await postJson(`/${TG_TOKEN}`, {
+    update_id: 2002,
+    message: { message_id: 2, chat: { id: "del-route-prefix" }, text: "/deletealert" },
+  });
+  assert.ok(res.status >= 200 && res.status < 300);
+  const body = await seen;
+  assert.ok(scope.isDone());
+  assert.ok(/usage/i.test(body.text), `/deletealert no-arg should hit usage, got: ${body.text}`);
+});
+
+test("deleteAlert: MarkdownV2 safety — success body has every special escaped", async () => {
+  const chat = "del-mdv2";
+  const { lastID } = await insertAlert({
+    chatId: chat,
+    target: 70000,
+    pair: "XBT/USD",
+    alertOn: "higher",
+  });
+  const { scope, seen } = captureSendMessage();
+  await deleteAlertFromCommand(chat, `/deletealert ${lastID}`);
+  const body = await seen;
+  assert.ok(scope.isDone());
+  const leaks = unescapedSpecials(body.text);
+  assert.equal(
+    leaks.length,
+    0,
+    `unescaped MarkdownV2 specials: ${JSON.stringify(leaks)} in: ${JSON.stringify(body.text)}`
   );
 });

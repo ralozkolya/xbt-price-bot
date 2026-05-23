@@ -33,7 +33,15 @@ test("COMMANDS exports an array including all routed slash commands", () => {
   assert.ok(COMMANDS.length > 0, "COMMANDS must not be empty");
 
   const names = COMMANDS.map((c) => c.command);
-  for (const required of ["start", "help", "current", "alert", "alerts"]) {
+  for (const required of [
+    "start",
+    "help",
+    "current",
+    "alert",
+    "alerts",
+    "deletealert",
+    "deletechange",
+  ]) {
     assert.ok(
       names.includes(required),
       `COMMANDS missing routed command "${required}" (got: ${names.join(",")})`

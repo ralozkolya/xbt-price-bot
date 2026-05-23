@@ -4,8 +4,16 @@ import createError from "http-errors";
 import { respondToInlineQuery } from "./inline-query.js";
 import { getHelp, start } from "./messages.js";
 import { TG_TOKEN, TG_WEBHOOK_SECRET } from "./config.js";
-import { alertFromCommand, alertFromResponse, listAlerts } from "./alerts.js";
-import { changeAlertFromCommand } from "./change-alerts.js";
+import {
+  alertFromCommand,
+  alertFromResponse,
+  deleteAlertFromCommand,
+  listAlerts,
+} from "./alerts.js";
+import {
+  changeAlertFromCommand,
+  deleteChangeAlertFromCommand,
+} from "./change-alerts.js";
 import { current } from "./current.js";
 
 export const COMMANDS = [
@@ -15,6 +23,8 @@ export const COMMANDS = [
   { command: "alert", description: "Set a price alert" },
   { command: "changealert", description: "Alert on significant % moves" },
   { command: "alerts", description: "List your active alerts" },
+  { command: "deletealert", description: "Delete a price alert by id" },
+  { command: "deletechange", description: "Delete a change alert by id" },
 ];
 
 const constantTimeEquals = (a, b) => {
@@ -62,6 +72,10 @@ export const handle = (token, body, headerSecret) => {
       return start(id);
     case text.startsWith("/help"):
       return getHelp(id);
+    case /^\/deletealert(@\w+)?(\s|$)/i.test(text):
+      return deleteAlertFromCommand(id, text);
+    case /^\/deletechange(@\w+)?(\s|$)/i.test(text):
+      return deleteChangeAlertFromCommand(id, text);
     case /^\/alerts(@\w+)?(\s|$)/i.test(text):
       return listAlerts(id);
     case /^\/changealert(@\w+)?(\s|$)/i.test(text):

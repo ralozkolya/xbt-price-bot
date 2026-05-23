@@ -29,6 +29,7 @@ let getChangeAlertsByPair;
 let getChangeAlertCount;
 let deleteChangeAlert;
 let removeChangeAlert;
+let deleteChangeAlertFromCommand;
 let evictCooldown;
 let app;
 let server;
@@ -49,6 +50,7 @@ before(async () => {
     resetChangeAlertState,
     MAX_CHANGE_ALERTS_PER_CHAT,
     removeChangeAlert,
+    deleteChangeAlertFromCommand,
     evictCooldown,
   } = await import("../src/change-alerts.js"));
   ({
@@ -139,7 +141,7 @@ const captureSendMessages = (n) => {
 // rows from earlier tests can't trigger phantom sendMessage calls.
 const wipeChangeAlertsForPair = async (pair) => {
   const rows = await getChangeAlertsByPair(pair);
-  await Promise.all(rows.map((r) => deleteChangeAlert(r.id)));
+  await Promise.all(rows.map((r) => deleteChangeAlert(r.id, r.chatId)));
 };
 const wipeAllChangeAlerts = async () => {
   for (const pair of ["XBT/USD", "XBT/EUR", "XBT/GBP"]) {
@@ -671,7 +673,7 @@ test("cooldown: removeChangeAlert (delete + evict) lets a recreated alert fire i
   // Delete via removeChangeAlert (which evicts the cooldown key). Then create
   // a NEW alert on the same pair and expect it to fire on the next crossing
   // even though COOLDOWN_MS has not elapsed.
-  await removeChangeAlert(inserted.lastID, chat, PAIR);
+  await removeChangeAlert(inserted.lastID, chat);
   await insertChangeAlert({ chatId: chat, pair: PAIR, threshold: 2 });
 
   const { scope: scope2, seen: seen2 } = captureSendMessage();
@@ -846,5 +848,184 @@ test("webhook routing: /changealertfoo (no boundary) is NOT routed to changeAler
   assert.ok(
     !/change alert has been set/i.test(body.text),
     `/changealertfoo was incorrectly routed to changeAlertFromCommand: ${body.text}`
+  );
+});
+
+// ---------- /deletechange ----------
+
+test("deleteChangeAlert: own-chat delete removes the row, evicts cooldown, success message", async () => {
+  await wipeAllChangeAlerts();
+  resetChangeAlertState();
+  overrideCooldownMs(60_000);
+  const chat = "ca-del-own";
+  const { lastID } = await insertChangeAlert({
+    chatId: chat,
+    pair: PAIR,
+    threshold: 2,
+  });
+  // Seat a cooldown by firing once.
+  const { scope: s1, seen: seen1 } = captureSendMessage();
+  for (let i = 0; i < CHANGE_WINDOW - 1; i++) {
+    await priceChangeHandler({ [PAIR]: 50_000 });
+  }
+  await priceChangeHandler({ [PAIR]: 52_000 });
+  await seen1;
+  assert.ok(s1.isDone());
+
+  const { scope, seen } = captureSendMessage();
+  await deleteChangeAlertFromCommand(chat, `/deletechange ${lastID}`);
+  const body = await seen;
+  assert.ok(scope.isDone());
+  assert.ok(/deleted/i.test(body.text), `expected deleted copy, got: ${body.text}`);
+  assert.ok(body.text.includes(String(lastID)));
+
+  // Row is gone.
+  const remaining = await getChangeAlertsByChatId(chat);
+  assert.ok(!remaining.some((r) => r.id === lastID));
+
+  // Cooldown evicted: recreate + cross again → fires immediately.
+  await insertChangeAlert({ chatId: chat, pair: PAIR, threshold: 2 });
+  const { scope: s2, seen: seen2 } = captureSendMessage();
+  await priceChangeHandler({ [PAIR]: 53_000 });
+  await seen2;
+  assert.ok(s2.isDone(), "recreated alert did not fire — cooldown was not evicted");
+});
+
+test("deleteChangeAlert: cross-tenant delete returns not-found, row untouched, cooldown untouched", async () => {
+  await wipeAllChangeAlerts();
+  resetChangeAlertState();
+  overrideCooldownMs(60_000);
+  const chatA = "ca-del-A";
+  const chatB = "ca-del-B";
+  const { lastID } = await insertChangeAlert({
+    chatId: chatA,
+    pair: PAIR,
+    threshold: 2,
+  });
+  // Fire chatA's alert to seat a cooldown for (chatA, pair).
+  const { scope: s1, seen: seen1 } = captureSendMessage();
+  for (let i = 0; i < CHANGE_WINDOW - 1; i++) {
+    await priceChangeHandler({ [PAIR]: 50_000 });
+  }
+  await priceChangeHandler({ [PAIR]: 52_000 });
+  await seen1;
+  assert.ok(s1.isDone());
+
+  const { scope, seen } = captureSendMessage();
+  await deleteChangeAlertFromCommand(chatB, `/deletechange ${lastID}`);
+  const body = await seen;
+  assert.ok(scope.isDone());
+  assert.ok(/no alert with that id/i.test(body.text));
+  // Not-found copy must NOT echo the id.
+  assert.ok(
+    !body.text.includes(String(lastID)),
+    `not-found message must not echo id: ${body.text}`
+  );
+  // chatA's row remains.
+  const rowsA = await getChangeAlertsByChatId(chatA);
+  assert.ok(rowsA.some((r) => r.id === lastID), "chatA's row must still exist");
+});
+
+test("deleteChangeAlert: nonexistent id returns not-found and does not throw", async () => {
+  await wipeAllChangeAlerts();
+  resetChangeAlertState();
+  const chat = "ca-del-nonexistent";
+  const { scope, seen } = captureSendMessage();
+  await deleteChangeAlertFromCommand(chat, "/deletechange 9999999");
+  const body = await seen;
+  assert.ok(scope.isDone());
+  assert.ok(/no alert with that id/i.test(body.text));
+});
+
+test("deleteChangeAlert: idempotent — second call returns not-found", async () => {
+  await wipeAllChangeAlerts();
+  resetChangeAlertState();
+  const chat = "ca-del-idemp";
+  const { lastID } = await insertChangeAlert({
+    chatId: chat,
+    pair: PAIR,
+    threshold: 2,
+  });
+  const { scope: s1, seen: seen1 } = captureSendMessage();
+  await deleteChangeAlertFromCommand(chat, `/deletechange ${lastID}`);
+  await seen1;
+  assert.ok(s1.isDone());
+
+  const { scope: s2, seen: seen2 } = captureSendMessage();
+  await deleteChangeAlertFromCommand(chat, `/deletechange ${lastID}`);
+  const body2 = await seen2;
+  assert.ok(s2.isDone());
+  assert.ok(/no alert with that id/i.test(body2.text));
+});
+
+test("deleteChangeAlert: malformed input variants all return the usage template", async () => {
+  await wipeAllChangeAlerts();
+  const chat = "ca-del-malformed";
+  const cases = ["/deletechange", "/deletechange ", "/deletechange #12", "/deletechange Δ5", "/deletechange 12abc", "/deletechange 1e5", "/deletechange -3", "/deletechange 0", "/deletechange 01"];
+  for (const text of cases) {
+    const { scope, seen } = captureSendMessage();
+    await deleteChangeAlertFromCommand(chat, text);
+    const body = await seen;
+    assert.ok(scope.isDone(), `no sendMessage fired for "${text}"`);
+    assert.ok(
+      /usage/i.test(body.text),
+      `input "${text}" did not produce usage template, got: ${body.text}`
+    );
+  }
+});
+
+test("deleteChangeAlert: dispatch regex matches expected forms only", () => {
+  const re = /^\/deletechange(@\w+)?(\s|$)/i;
+  assert.ok(re.test("/deletechange"));
+  assert.ok(re.test("/deletechange "));
+  assert.ok(re.test("/deletechange 5"));
+  assert.ok(re.test("/Deletechange 5"));
+  assert.ok(re.test("/deletechange@SomeBot"));
+  assert.ok(re.test("/deletechange@SomeBot 5"));
+  assert.ok(!re.test("/deletechanges"));
+  assert.ok(!re.test("/deletechangefoo"));
+  assert.ok(!re.test("/deletechange5"));
+  assert.ok(!re.test(" /deletechange"));
+  assert.ok(!re.test("deletechange"));
+});
+
+test("deleteChangeAlert webhook: /deletechange <id> is routed and deletes the row", async () => {
+  await wipeAllChangeAlerts();
+  resetChangeAlertState();
+  const chat = "ca-del-webhook";
+  const { lastID } = await insertChangeAlert({
+    chatId: chat,
+    pair: PAIR,
+    threshold: 2,
+  });
+  const { scope, seen } = captureSendMessage();
+  const res = await postJson(`/${TG_TOKEN}`, {
+    update_id: 3001,
+    message: { message_id: 1, chat: { id: chat }, text: `/deletechange ${lastID}` },
+  });
+  assert.ok(res.status >= 200 && res.status < 300);
+  const body = await seen;
+  assert.ok(scope.isDone());
+  assert.ok(/deleted/i.test(body.text));
+});
+
+test("deleteChangeAlert: MarkdownV2 safety — success body has every special escaped", async () => {
+  await wipeAllChangeAlerts();
+  resetChangeAlertState();
+  const chat = "ca-del-mdv2";
+  const { lastID } = await insertChangeAlert({
+    chatId: chat,
+    pair: PAIR,
+    threshold: 2,
+  });
+  const { scope, seen } = captureSendMessage();
+  await deleteChangeAlertFromCommand(chat, `/deletechange ${lastID}`);
+  const body = await seen;
+  assert.ok(scope.isDone());
+  const leaks = unescapedSpecials(body.text);
+  assert.equal(
+    leaks.length,
+    0,
+    `unescaped MarkdownV2 specials: ${JSON.stringify(leaks)} in ${JSON.stringify(body.text)}`
   );
 });

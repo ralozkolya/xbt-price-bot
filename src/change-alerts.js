@@ -1,5 +1,6 @@
 import {
   deleteChangeAlert,
+  deleteChangeAlertReturningPair,
   getChangeAlertsByChatId,
   getChangeAlertsByPair,
   insertChangeAlertIfUnderCap,
@@ -12,14 +13,25 @@ import {
 } from "./kraken.js";
 import { logger } from "./logger.js";
 import {
+  alertDeleted,
+  alertNotFound,
   changeAlertAcknowledgment,
   changeAlertSet,
   changeAlertTriggered,
+  deleteChangeAlertUsage,
   errorOccured,
   tooManyChangeAlerts,
   unsupportedChangeTarget,
   unsupportedCurrency,
 } from "./messages.js";
+
+const POSITIVE_INT_RE = /^[1-9]\d*$/;
+const parsePositiveIntStrict = (raw) => {
+  const trimmed = typeof raw === "string" ? raw.trim() : "";
+  if (!POSITIVE_INT_RE.test(trimmed)) return null;
+  const n = Number.parseInt(trimmed, 10);
+  return Number.isInteger(n) && n > 0 && String(n) === trimmed ? n : null;
+};
 
 export let COOLDOWN_MS = 15 * 60 * 1000;
 
@@ -125,10 +137,34 @@ export const changeAlertFromCommand = (chatId, text) => {
 
 export const listChangeAlerts = (chatId) => getChangeAlertsByChatId(chatId);
 
-export const removeChangeAlert = async (id, chatId, pair) => {
-  const result = await deleteChangeAlert(id);
-  if (chatId && pair) evictCooldown(chatId, pair);
-  return result;
+export const removeChangeAlert = async (id, chatId) => {
+  const row = await deleteChangeAlertReturningPair(id, chatId);
+  if (row) {
+    evictCooldown(chatId, row.pair);
+    return { changes: 1, pair: row.pair };
+  }
+  return { changes: 0 };
+};
+
+export const deleteChangeAlertFromCommand = async (chatId, text) => {
+  const raw = text.replace(/^\s*\/deletechange(@\w+)?\s*/i, "");
+  const id = parsePositiveIntStrict(raw);
+  if (id === null) {
+    return deleteChangeAlertUsage(chatId);
+  }
+  try {
+    const result = await removeChangeAlert(id, chatId);
+    if (result.changes !== 1) {
+      return alertNotFound(chatId);
+    }
+    logger.info(`Change alert ${id} deleted by chat ${chatId}`);
+    return alertDeleted(chatId, { ID: id });
+  } catch (e) {
+    logger.error(
+      `deleteChangeAlertFromCommand failed for chat ${chatId}: ${e.message}`
+    );
+    return errorOccured(chatId);
+  }
 };
 
 const processChangeAlert = async (alert, current, average, now) => {
