@@ -76,7 +76,7 @@ const reconnect = (ws) => {
 
 // Kraken WS v1 emits {"event":"heartbeat"} every second on a healthy subscription.
 // If nothing arrives for this long, the connection is silently dead — terminate to reconnect.
-const LIVENESS_TIMEOUT_MS = 10000;
+const LIVENESS_TIMEOUT_MS = 60000;
 let livenessTimer;
 const armLiveness = (ws) => {
   clearTimeout(livenessTimer);
