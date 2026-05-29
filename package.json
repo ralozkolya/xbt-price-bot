@@ -26,7 +26,7 @@
   "homepage": "https://github.com/ralozkolya/xbt-price-bot#readme",
   "dependencies": {
     "@koa/router": "^15.4.0",
-    "axios": "^1.15.2",
+    "axios": "^1.16.0",
     "chart.js": "^4.4.8",
     "chartjs-node-canvas": "^5.0.0",
     "dotenv": "^17.4.2",
