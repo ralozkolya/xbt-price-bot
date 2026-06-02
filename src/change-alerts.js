@@ -43,6 +43,16 @@ export const overrideCooldownMs = (ms) => {
   COOLDOWN_MS = ms;
 };
 
+// How often the per-pair trailing delta is emitted to the log. This is purely
+// observability — it does not gate alerts — so it throttles independently of
+// COOLDOWN_MS. Overridable for tests (mirrors overrideCooldownMs) so the
+// throttle can be exercised against the injected clock without waiting an hour.
+export let DELTA_LOG_INTERVAL_MS = 60 * 60 * 1000;
+
+export const overrideDeltaLogIntervalMs = (ms) => {
+  DELTA_LOG_INTERVAL_MS = ms;
+};
+
 export const MAX_CHANGE_ALERTS_PER_CHAT = 20;
 const PERCENT_RE = /^\d+(\.\d+)?%?$/;
 
@@ -50,10 +60,14 @@ const N_BUCKETS = Math.max(1, Math.ceil(CHANGE_WINDOW_MS / CHANGE_BUCKET_MS));
 
 const ringBuffers = new Map();
 const lastFiredAt = new Map();
+// Per-pair wall-clock ts of the last delta log line. Throttles the hourly
+// observability log independently of the alert cooldown.
+const lastDeltaLogAt = new Map();
 
 export const resetChangeAlertState = () => {
   ringBuffers.clear();
   lastFiredAt.clear();
+  lastDeltaLogAt.clear();
 };
 
 const sweepCooldowns = (now) => {
@@ -145,6 +159,27 @@ const trailingAverage = (pair, now) => {
   return s.runningSum / s.runningCount;
 };
 
+// Signed percent deviation of the latest price from the trailing average.
+// Shared by alert evaluation and the hourly delta log so both report the
+// same number.
+const computeDelta = (current, average) => ((current - average) / average) * 100;
+
+// Emit the current per-pair delta to the log at most once per
+// DELTA_LOG_INTERVAL_MS. Pure observability — never gates an alert. Only
+// reachable once `average` is non-null (i.e. past the warm-up floor), so the
+// first line for a pair lands one interval-window after warm-up at the latest.
+// Logged at `warn` deliberately: the prod Console transport is gated at "warn"
+// (src/logger.js), and this hourly line is meant to be visible in production.
+const maybeLogDelta = (pair, current, average, now) => {
+  const last = lastDeltaLogAt.get(pair);
+  if (last !== undefined && now - last < DELTA_LOG_INTERVAL_MS) return;
+  lastDeltaLogAt.set(pair, now);
+  const delta = computeDelta(current, average);
+  logger.warn(
+    `Change delta for ${pair}: ${delta.toFixed(2)}% (current ${current}, avg ${average.toFixed(2)})`
+  );
+};
+
 export const setChangeAlert = async (chatId, percentRaw, currency = "usd") => {
   if (typeof percentRaw !== "string" || !PERCENT_RE.test(percentRaw)) {
     return unsupportedChangeTarget(chatId);
@@ -233,7 +268,7 @@ export const deleteChangeAlertFromCommand = async (chatId, text) => {
 };
 
 const processChangeAlert = async (alert, current, average, now) => {
-  const delta = ((current - average) / average) * 100;
+  const delta = computeDelta(current, average);
   if (Math.abs(delta) < alert.threshold) return;
 
   const key = cooldownKey(alert.chatId, alert.pair);
@@ -274,6 +309,10 @@ export const priceChangeHandler = async (change, now = Date.now()) => {
 
       const average = trailingAverage(pair, now);
       if (average === null) return;
+
+      // Hourly observability log of the trailing delta. Throttled per pair and
+      // independent of whether any alert exists for it.
+      maybeLogDelta(pair, current, average, now);
 
       const alerts = await getChangeAlertsByPair(pair);
       await Promise.all(

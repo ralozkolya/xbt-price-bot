@@ -34,6 +34,8 @@ let deleteChangeAlert;
 let removeChangeAlert;
 let deleteChangeAlertFromCommand;
 let evictCooldown;
+let overrideDeltaLogIntervalMs;
+let logger;
 let app;
 let server;
 let baseUrl;
@@ -55,7 +57,9 @@ before(async () => {
     removeChangeAlert,
     deleteChangeAlertFromCommand,
     evictCooldown,
+    overrideDeltaLogIntervalMs,
   } = await import("../src/change-alerts.js"));
+  ({ logger } = await import("../src/logger.js"));
   ({
     insertAlert,
     insertChangeAlert,
@@ -584,6 +588,126 @@ test("firing: triggered message carries DELTA, AVERAGE, CURRENT, THRESHOLD subst
   assert.ok(body.text.includes("50,500"), `missing AVERAGE 50,500: ${body.text}`);
   // DELTA is ~3.96 — assert SOME positive non-zero formatted value (escaped dot).
   assert.ok(/\d+\\\.\d+/.test(body.text), `missing fractional DELTA: ${body.text}`);
+});
+
+// ---------- Hourly delta logging ----------
+
+// Swap logger.warn for a capturing stub for the duration of `fn`. The delta
+// line is logged at `warn` (so it survives the prod Console level). change-alerts
+// calls `logger.warn` by property lookup on the shared singleton, so the stub
+// is observed. Returns the array of captured messages.
+const withCapturedWarn = async (fn) => {
+  const messages = [];
+  const original = logger.warn;
+  logger.warn = (msg) => messages.push(msg);
+  try {
+    await fn(messages);
+  } finally {
+    logger.warn = original;
+  }
+  return messages;
+};
+
+const deltaLogsFor = (messages, pair) =>
+  messages.filter((m) => /change delta for/i.test(m) && m.includes(pair));
+
+test("delta logging: emits one line on the first post-warmup tick, then throttles within the interval", async () => {
+  await wipeAllChangeAlerts();
+  resetFiringState();
+  // Interval comfortably larger than the test-clock steps so a few ticks fall
+  // inside one window. No alerts inserted → no Telegram sends to capture.
+  overrideDeltaLogIntervalMs(10_000);
+  try {
+    await withCapturedWarn(async (messages) => {
+      // Warm-up: ticks at clock 100..400 — average is still null (floor 400ms,
+      // boundary lifts at elapsed=400 i.e. clock 500).
+      for (let i = 0; i < CHANGE_WINDOW - 1; i++) {
+        await tick({ [PAIR]: 50_000 });
+      }
+      assert.equal(
+        deltaLogsFor(messages, PAIR).length,
+        0,
+        "no delta should be logged during warm-up (average is null)"
+      );
+
+      // Clock 500: first tick with a non-null average → exactly one delta line.
+      await tick({ [PAIR]: 51_000 });
+      assert.equal(
+        deltaLogsFor(messages, PAIR).length,
+        1,
+        `expected one delta log at warm-up boundary, got: ${JSON.stringify(deltaLogsFor(messages, PAIR))}`
+      );
+      // The line carries the pair, the computed delta, and the current/avg
+      // readout. The current sample is folded into the window before the
+      // average is read: avg = (50000×4 + 51000)/5 = 50200, so the 51000 tick
+      // is +1.59% vs that average.
+      const line = deltaLogsFor(messages, PAIR)[0];
+      assert.match(line, /XBT\/USD/);
+      assert.match(line, /-?\d+\.\d{2}%/); // signed-capable, 2-decimal percent
+      assert.ok(line.includes("1.59%"), `expected +1.59% delta, got: ${line}`);
+      assert.ok(line.includes("current 51000"), `expected current readout, got: ${line}`);
+      assert.ok(line.includes("avg 50200.00"), `expected avg readout, got: ${line}`);
+
+      // Subsequent ticks within the 10s interval must NOT add lines.
+      await tick({ [PAIR]: 51_500 });
+      await tick({ [PAIR]: 52_000 });
+      assert.equal(
+        deltaLogsFor(messages, PAIR).length,
+        1,
+        "ticks within the interval must not re-log the delta"
+      );
+    });
+  } finally {
+    overrideDeltaLogIntervalMs(60 * 60 * 1000);
+  }
+});
+
+test("delta logging: re-logs once the interval elapses", async () => {
+  await wipeAllChangeAlerts();
+  resetFiringState();
+  overrideDeltaLogIntervalMs(250); // small window relative to the 100ms ticks
+  try {
+    await withCapturedWarn(async (messages) => {
+      for (let i = 0; i < CHANGE_WINDOW - 1; i++) {
+        await tick({ [PAIR]: 50_000 });
+      }
+      await tick({ [PAIR]: 51_000 }); // clock 500 → log #1 (last=500)
+      assert.equal(deltaLogsFor(messages, PAIR).length, 1);
+
+      await tick({ [PAIR]: 51_000 }); // clock 600, 100 < 250 → no log
+      assert.equal(deltaLogsFor(messages, PAIR).length, 1);
+
+      await tick({ [PAIR]: 51_000 }); // clock 700, 200 < 250 → no log
+      assert.equal(deltaLogsFor(messages, PAIR).length, 1);
+
+      await tick({ [PAIR]: 51_000 }); // clock 800, 300 >= 250 → log #2
+      assert.equal(
+        deltaLogsFor(messages, PAIR).length,
+        2,
+        "a tick past the interval boundary must re-log"
+      );
+    });
+  } finally {
+    overrideDeltaLogIntervalMs(60 * 60 * 1000);
+  }
+});
+
+test("delta logging: throttled independently per pair", async () => {
+  await wipeAllChangeAlerts();
+  resetFiringState();
+  overrideDeltaLogIntervalMs(10_000);
+  try {
+    await withCapturedWarn(async (messages) => {
+      for (let i = 0; i < CHANGE_WINDOW - 1; i++) {
+        await tick({ "XBT/USD": 50_000, "XBT/EUR": 40_000 });
+      }
+      await tick({ "XBT/USD": 51_000, "XBT/EUR": 41_000 });
+      assert.equal(deltaLogsFor(messages, "XBT/USD").length, 1, "USD logs once");
+      assert.equal(deltaLogsFor(messages, "XBT/EUR").length, 1, "EUR logs once");
+    });
+  } finally {
+    overrideDeltaLogIntervalMs(60 * 60 * 1000);
+  }
 });
 
 // ---------- Cooldown + auto-rearm ----------
